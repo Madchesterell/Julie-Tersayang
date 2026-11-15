@@ -1,42 +1,40 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // 0. Global Score Helper
+  // Global Score & Hug Count
   const globalScoreEl = document.getElementById('global-score');
-  let globalScore = 0;
+  const energyCountEl = document.getElementById('energy-count');
+  let globalScore = Number(localStorage.getItem('j-score') || 100);
+  let hugCount = Number(localStorage.getItem('j-hugs') || 0);
 
-  function addGlobalScore(pts) {
-    globalScore += pts;
+  function updateScores() {
     globalScoreEl.textContent = globalScore;
+    energyCountEl.textContent = hugCount;
+    localStorage.setItem('j-score', globalScore);
+    localStorage.setItem('j-hugs', hugCount);
   }
+  updateScores();
 
-  // Cute Web Audio Pop Sound Generator (No external mp3 needed!)
+  // Cute Pop Sound
   let audioCtx = null;
   function playCutePop(freq = 520) {
     try {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(freq * 1.65, audioCtx.currentTime + 0.09);
-
       gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-
       osc.connect(gain);
       gain.connect(audioCtx.destination);
       osc.start();
       osc.stop(audioCtx.currentTime + 0.1);
-    } catch (e) {
-      // Ignore audio block if autoplay restricted
-    }
+    } catch (e) {}
   }
 
-  // 1. Dark / Light Mode Toggle
+  // Theme Toggle
   const themeToggle = document.getElementById('theme-toggle');
   const htmlEl = document.documentElement;
-
   const savedTheme = localStorage.getItem('julie-theme') || 'light';
   htmlEl.setAttribute('data-theme', savedTheme);
 
@@ -48,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     playCutePop(440);
   });
 
-  // 2. Confetti System (Strictly Orange & White Shades)
+  // Confetti System
   const canvas = document.getElementById('confetti-canvas');
   const ctx = canvas.getContext('2d');
   let particles = [];
@@ -100,405 +98,378 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   updateConfetti();
 
-  // 3. Hero Energy Button
+  // Hero Hug Button
   const btnHug = document.getElementById('btn-hug');
-  const energyCountEl = document.getElementById('energy-count');
-  let energyCount = 0;
-
   btnHug.addEventListener('click', () => {
-    energyCount += 10;
-    energyCountEl.textContent = energyCount;
-    addGlobalScore(10);
+    hugCount++;
+    globalScore += 15;
+    updateScores();
+    playCutePop(650);
+    launchConfetti(85);
+  });
+
+  // Feature Tabs Navigation Switcher
+  const featTabs = document.querySelectorAll('.feat-tab');
+  const featPanels = document.querySelectorAll('.feat-panel');
+
+  featTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      featTabs.forEach(t => t.classList.remove('active'));
+      featPanels.forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      const targetPanel = document.getElementById(tab.getAttribute('data-target'));
+      if (targetPanel) targetPanel.classList.add('active');
+      playCutePop(500);
+    });
+  });
+
+  // 1. Calendar & Red Day Tracker
+  const anniversaryList = document.getElementById('anniversary-list');
+  const addEventForm = document.getElementById('add-event-form');
+  const redStartDate = document.getElementById('red-start-date');
+  const redStatus = document.getElementById('red-status');
+  const btnLogRed = document.getElementById('btn-log-red');
+
+  let customEvents = JSON.parse(localStorage.getItem('j-events')) || [];
+  function renderEvents() {
+    anniversaryList.innerHTML = `
+      <li><span>First Meet / Kenalan</span> <strong>12 Jan</strong></li>
+      <li><span>Official Dating</span> <strong>25 Feb</strong></li>
+    `;
+    customEvents.forEach((ev, idx) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>${ev.name}</span> <strong>${ev.date}</strong> <button class="btn-del" data-idx="${idx}">×</button>`;
+      anniversaryList.appendChild(li);
+    });
+  }
+  renderEvents();
+
+  addEventForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = document.getElementById('event-name').value;
+    const date = document.getElementById('event-date').value;
+    customEvents.push({ name, date });
+    localStorage.setItem('j-events', JSON.stringify(customEvents));
+    renderEvents();
+    addEventForm.reset();
     playCutePop(600);
-    launchConfetti(80);
   });
 
-  // =========================================================
-  // 4. NEW REPLAYABLE GAME 1: TANGKAP CAMILAN MOCHI (ARCADE)
-  // =========================================================
-  const arcadeCanvas = document.getElementById('arcade-canvas');
-  const aCtx = arcadeCanvas.getContext('2d');
-  const arcadeOverlay = document.getElementById('arcade-overlay');
-  const startArcadeBtn = document.getElementById('start-arcade-btn');
-  const arcadeScoreEl = document.getElementById('arcade-score');
-  const arcadeBestEl = document.getElementById('arcade-best');
-  const arcadeTimeEl = document.getElementById('arcade-time');
-  const overlayTitle = document.getElementById('arcade-overlay-title');
-  const overlayDesc = document.getElementById('arcade-overlay-desc');
-
-  let arcadeBest = Number(localStorage.getItem('julie-arcade-best') || 0);
-  arcadeBestEl.textContent = arcadeBest;
-
-  let arcadeRunning = false;
-  let arcadeScore = 0;
-  let arcadeTimeLeft = 25;
-  let arcadeTimerInterval = null;
-  let fallingItems = [];
-  let floatingTexts = [];
-  let basket = { x: 200, width: 96, height: 42 };
-
-  function resizeArcade() {
-    const rect = arcadeCanvas.parentElement.getBoundingClientRect();
-    arcadeCanvas.width = rect.width;
-    arcadeCanvas.height = rect.height;
-    basket.x = arcadeCanvas.width / 2 - basket.width / 2;
-  }
-  window.addEventListener('resize', resizeArcade);
-  resizeArcade();
-
-  function moveBasket(clientX) {
-    const rect = arcadeCanvas.getBoundingClientRect();
-    const relX = clientX - rect.left;
-    basket.x = Math.max(8, Math.min(arcadeCanvas.width - basket.width - 8, relX - basket.width / 2));
-  }
-
-  arcadeCanvas.addEventListener('mousemove', (e) => moveBasket(e.clientX));
-  arcadeCanvas.addEventListener('touchmove', (e) => {
-    if (e.touches.length > 0) {
-      moveBasket(e.touches[0].clientX);
+  anniversaryList.addEventListener('click', (e) => {
+    if (e.target.classList.contains('btn-del')) {
+      const idx = e.target.getAttribute('data-idx');
+      customEvents.splice(idx, 1);
+      localStorage.setItem('j-events', JSON.stringify(customEvents));
+      renderEvents();
     }
-  }, { passive: true });
+  });
 
-  function spawnArcadeItem() {
-    const roll = Math.random();
-    let type = { emoji: '🍡', pts: 10, speed: 3.2 + Math.random() * 1.8 };
-    if (roll > 0.78) {
-      type = { emoji: '⭐', pts: 25, speed: 4.5 + Math.random() * 1.5 };
-    } else if (roll < 0.22) {
-      type = { emoji: '💤', pts: -15, speed: 3.6 + Math.random() * 1.6 };
-    }
+  // Red Day Simulation
+  let lastRedDate = localStorage.getItem('j-red-date') || '2026-06-01';
+  function updateRedTracker() {
+    redStartDate.textContent = lastRedDate;
+    redStatus.textContent = 'Perhatian & Sayang Ekstra 🍫';
+  }
+  updateRedTracker();
 
-    fallingItems.push({
-      x: Math.random() * (arcadeCanvas.width - 48) + 24,
-      y: -30,
-      size: 30,
-      ...type
+  btnLogRed.addEventListener('click', () => {
+    const today = new Date().toISOString().split('T')[0];
+    lastRedDate = today;
+    localStorage.setItem('j-red-date', today);
+    updateRedTracker();
+    playCutePop(540);
+    launchConfetti(40);
+  });
+
+  // 2. Mood Meter
+  const moodBtns = document.querySelectorAll('.mood-btn');
+  const currentMoodText = document.getElementById('current-mood-text');
+  const moodAdvice = document.getElementById('mood-advice');
+
+  moodBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      moodBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const mood = btn.getAttribute('data-mood');
+      const msg = btn.getAttribute('data-msg');
+      currentMoodText.textContent = mood;
+      moodAdvice.textContent = `Pesan otomatis: ${msg}`;
+      playCutePop(580);
+      globalScore += 5;
+      updateScores();
     });
-  }
+  });
 
-  function startArcadeGame() {
-    resizeArcade();
-    arcadeRunning = true;
-    arcadeScore = 0;
-    arcadeTimeLeft = 25;
-    fallingItems = [];
-    floatingTexts = [];
-    arcadeScoreEl.textContent = '0';
-    arcadeTimeEl.textContent = '25s';
-    arcadeOverlay.classList.add('hidden');
-    playCutePop(560);
-
-    clearInterval(arcadeTimerInterval);
-    arcadeTimerInterval = setInterval(() => {
-      arcadeTimeLeft--;
-      arcadeTimeEl.textContent = `${arcadeTimeLeft}s`;
-      if (arcadeTimeLeft <= 0) {
-        endArcadeGame();
-      }
-    }, 1000);
-
-    requestAnimationFrame(loopArcade);
-  }
-
-  function endArcadeGame() {
-    arcadeRunning = false;
-    clearInterval(arcadeTimerInterval);
-    if (arcadeScore > arcadeBest) {
-      arcadeBest = arcadeScore;
-      localStorage.setItem('julie-arcade-best', arcadeBest);
-      arcadeBestEl.textContent = arcadeBest;
-    }
-    overlayTitle.textContent = `Yeay! Skor Kamu: ${arcadeScore} Poin 🎉`;
-    overlayDesc.textContent = arcadeScore >= 100
-      ? 'Luar biasa! Refleks kamu cepet banget, Julie juara!'
-      : 'Seru kan? Ayo main lagi buat pecahin rekor tertinggimu!';
-    startArcadeBtn.textContent = '🔄 Main Lagi';
-    arcadeOverlay.classList.remove('hidden');
-    launchConfetti(90);
-  }
-
-  let frameTick = 0;
-  function loopArcade() {
-    if (!arcadeRunning) return;
-    aCtx.clearRect(0, 0, arcadeCanvas.width, arcadeCanvas.height);
-
-    frameTick++;
-    if (frameTick % 28 === 0) {
-      spawnArcadeItem();
-    }
-
-    // Draw Cute Basket (Orange pill with cute cat ears)
-    const bx = basket.x;
-    const by = arcadeCanvas.height - basket.height - 16;
-    aCtx.fillStyle = '#ff6b00';
-    aCtx.beginPath();
-    aCtx.roundRect(bx, by, basket.width, basket.height, 18);
-    aCtx.fill();
-
-    // Cute face on basket
-    aCtx.fillStyle = '#ffffff';
-    aCtx.font = 'bold 15px Plus Jakarta Sans, sans-serif';
-    aCtx.textAlign = 'center';
-    aCtx.fillText('• ᴥ •', bx + basket.width / 2, by + 26);
-
-    // Update & Draw Falling Items
-    aCtx.font = '28px sans-serif';
-    for (let i = fallingItems.length - 1; i >= 0; i--) {
-      const item = fallingItems[i];
-      item.y += item.speed;
-      aCtx.fillText(item.emoji, item.x, item.y);
-
-      // Collision Check
-      if (
-        item.y + 10 >= by &&
-        item.y - 16 <= by + basket.height &&
-        item.x >= bx - 12 &&
-        item.x <= bx + basket.width + 12
-      ) {
-        arcadeScore = Math.max(0, arcadeScore + item.pts);
-        arcadeScoreEl.textContent = arcadeScore;
-        if (item.pts > 0) {
-          addGlobalScore(item.pts);
-          playCutePop(680);
-        } else {
-          playCutePop(260);
-        }
-        floatingTexts.push({
-          x: item.x,
-          y: by - 8,
-          text: item.pts > 0 ? `+${item.pts}` : `${item.pts}`,
-          positive: item.pts > 0,
-          alpha: 1
-        });
-        fallingItems.splice(i, 1);
-        continue;
-      }
-
-      if (item.y > arcadeCanvas.height + 30) {
-        fallingItems.splice(i, 1);
-      }
-    }
-
-    // Floating Score Feedback
-    for (let i = floatingTexts.length - 1; i >= 0; i--) {
-      const ft = floatingTexts[i];
-      ft.y -= 1.4;
-      ft.alpha -= 0.025;
-      aCtx.save();
-      aCtx.globalAlpha = Math.max(0, ft.alpha);
-      aCtx.font = '800 16px Plus Jakarta Sans, sans-serif';
-      aCtx.fillStyle = ft.positive ? '#ff6b00' : '#71717a';
-      aCtx.fillText(ft.text, ft.x, ft.y);
-      aCtx.restore();
-      if (ft.alpha <= 0) floatingTexts.splice(i, 1);
-    }
-
-    requestAnimationFrame(loopArcade);
-  }
-
-  startArcadeBtn.addEventListener('click', startArcadeGame);
-
-  // =========================================================
-  // 5. NEW REPLAYABLE GAME 2: BUBBLE WRAP POP-IT GEMOY
-  // =========================================================
-  const bubbleGrid = document.getElementById('bubble-grid');
-  const resetBubblesBtn = document.getElementById('reset-bubbles-btn');
-  const bubbleToast = document.getElementById('bubble-toast');
-
-  const cuteIcons = ['🧡', '✨', '🍊', '⭐', '🧸', '🎀', '🌸', '🍭'];
-  const cuteCompliments = [
-    'Pop! Kamu manis banget hari ini! 🧡',
-    'Pop! Semangat terus ya cantik! ✨',
-    'Pop! Jangan lupa senyum lebar! 😊',
-    'Pop! Kamu anak paling hebat! 🌟',
-    'Pop! Istirahat bentar gapapa kok! 🧸',
-    'Pop! Mood booster +100% buat Julie! 🍊',
-    'Pop! Hari ini bakal berjalan lancar! 🎀',
-    'Pop! Kamu selalu bikin bangga! 🏆'
+  // 3. Gallery
+  const galleryForm = document.getElementById('gallery-form');
+  const galleryGrid = document.getElementById('gallery-grid');
+  let galleryItems = JSON.parse(localStorage.getItem('j-gallery')) || [
+    { title: 'Ngobrol Santai Sore Hari', img: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=600&q=80' },
+    { title: 'Jajan Boba Bareng', img: 'https://images.unsplash.com/photo-1541658016709-82535e94bc69?auto=format&fit=crop&w=600&q=80' }
   ];
 
-  function buildBubbles() {
-    bubbleGrid.innerHTML = '';
-    const totalBubbles = 24;
-    for (let i = 0; i < totalBubbles; i++) {
-      const btn = document.createElement('button');
-      btn.className = 'bubble-item';
-      const icon = cuteIcons[i % cuteIcons.length];
-      btn.textContent = icon;
-      btn.setAttribute('aria-label', 'Gelembung lucu');
-
-      btn.addEventListener('click', () => {
-        if (btn.classList.contains('popped')) return;
-        btn.classList.add('popped');
-        btn.textContent = '✓';
-        playCutePop(480 + Math.random() * 260);
-        addGlobalScore(5);
-
-        const randomMsg = cuteCompliments[Math.floor(Math.random() * cuteCompliments.length)];
-        bubbleToast.textContent = randomMsg;
-        bubbleToast.style.transform = 'scale(1.02)';
-        setTimeout(() => (bubbleToast.style.transform = 'scale(1)'), 150);
-
-        // Auto-refill celebration if all popped!
-        const remaining = bubbleGrid.querySelectorAll('.bubble-item:not(.popped)').length;
-        if (remaining === 0) {
-          bubbleToast.textContent = '🎉 Semua gelembung meletup! Klik "Isi Ulang Gelembung" buat main lagi!';
-          launchConfetti(85);
-        }
-      });
-
-      bubbleGrid.appendChild(btn);
-    }
+  function renderGallery() {
+    galleryGrid.innerHTML = '';
+    galleryItems.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'gallery-card';
+      card.innerHTML = `<img src="${item.img}" alt="${item.title}" /><p>${item.title}</p>`;
+      galleryGrid.appendChild(card);
+    });
   }
+  renderGallery();
 
-  resetBubblesBtn.addEventListener('click', () => {
-    buildBubbles();
+  galleryForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const title = document.getElementById('gallery-title').value;
+    const img = document.getElementById('gallery-img').value;
+    galleryItems.unshift({ title, img });
+    localStorage.setItem('j-gallery', JSON.stringify(galleryItems));
+    renderGallery();
+    galleryForm.reset();
     playCutePop(620);
-    bubbleToast.textContent = 'Gelembung baru siap dipencetin lagi! ✨';
+    globalScore += 10;
+    updateScores();
   });
 
-  buildBubbles();
-
-  // =========================================================
-  // 6. Mini Game: Runaway Button (Replayable with Random Quotes)
-  // =========================================================
-  const arena = document.getElementById('game-arena');
-  const runawayBtn = document.getElementById('runaway-btn');
-  const gameReward = document.getElementById('game-reward');
-  const resetGameBtn = document.getElementById('reset-game');
-  const rewardTitle = document.getElementById('reward-title');
-  const rewardText = document.getElementById('reward-text');
-
-  let dodgeCount = 0;
-  const maxDodges = 4;
-
-  const secretRewards = [
-    {
-      title: 'Kamu Keren Banget, Julie! 🏆',
-      text: 'Gak peduli seberapa sibuk hari ini, senyum kamu selalu jadi hal paling juara. Jangan lupa minum air putih ya!'
-    },
-    {
-      title: 'Refleks Super Cepat! ⚡',
-      text: 'Tombol segesit ini aja ketangkep sama kamu! Semoga semua urusan dan tugas kamu hari ini juga beres secepat itu.'
-    },
-    {
-      title: 'Hadiah Peluk Virtual! 🤗',
-      text: 'Selamat! Kamu berhak dapet semangat ekstra dan traktiran jajan favorit kapan pun kamu lagi capek.'
-    }
+  // 4. Reminders
+  const reminderForm = document.getElementById('reminder-form');
+  const reminderList = document.getElementById('reminder-list');
+  let reminders = JSON.parse(localStorage.getItem('j-reminders')) || [
+    { text: 'Minum air putih & istirahat sebentar', time: '14:00' }
   ];
 
-  function moveButton() {
-    if (dodgeCount >= maxDodges) return;
-    dodgeCount++;
-    playCutePop(400 + dodgeCount * 60);
-
-    const arenaRect = arena.getBoundingClientRect();
-    const btnRect = runawayBtn.getBoundingClientRect();
-
-    const maxX = arenaRect.width - btnRect.width - 24;
-    const maxY = arenaRect.height - btnRect.height - 24;
-
-    const randX = Math.max(16, Math.floor(Math.random() * maxX));
-    const randY = Math.max(16, Math.floor(Math.random() * maxY));
-
-    runawayBtn.style.left = `${randX}px`;
-    runawayBtn.style.top = `${randY}px`;
-
-    const taunts = [
-      'Eits, gak kena! 😝',
-      'Dikit lagi ayo! 🏃‍♀️',
-      'Wlee, kejar terus! ✨',
-      'Oke deh, klik aku sekarang! 🧡'
-    ];
-    runawayBtn.textContent = taunts[dodgeCount - 1] || 'Klik Aku! 🧡';
+  function renderReminders() {
+    reminderList.innerHTML = '';
+    reminders.forEach((rem, idx) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>⏰ ${rem.text}</span> <strong>${rem.time}</strong> <button class="btn-del" data-idx="${idx}">×</button>`;
+      reminderList.appendChild(li);
+    });
   }
+  renderReminders();
 
-  runawayBtn.addEventListener('mouseenter', moveButton);
-  runawayBtn.addEventListener('touchstart', (e) => {
-    if (dodgeCount < maxDodges) {
-      e.preventDefault();
-      moveButton();
+  reminderForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = document.getElementById('rem-text').value;
+    const time = document.getElementById('rem-time').value;
+    reminders.push({ text, time });
+    localStorage.setItem('j-reminders', JSON.stringify(reminders));
+    renderReminders();
+    reminderForm.reset();
+    playCutePop(550);
+  });
+
+  reminderList.addEventListener('click', (e) => {
+    if (e.target.classList.contains('btn-del')) {
+      reminders.splice(e.target.getAttribute('data-idx'), 1);
+      localStorage.setItem('j-reminders', JSON.stringify(reminders));
+      renderReminders();
     }
   });
 
-  runawayBtn.addEventListener('click', () => {
-    const pick = secretRewards[Math.floor(Math.random() * secretRewards.length)];
-    rewardTitle.textContent = pick.title;
-    rewardText.textContent = pick.text;
-    runawayBtn.style.display = 'none';
-    gameReward.classList.remove('hidden');
-    addGlobalScore(30);
-    playCutePop(720);
-    launchConfetti(100);
-  });
-
-  resetGameBtn.addEventListener('click', () => {
-    dodgeCount = 0;
-    runawayBtn.style.display = 'inline-flex';
-    runawayBtn.style.left = 'auto';
-    runawayBtn.style.top = 'auto';
-    runawayBtn.textContent = 'Klik Aku Dong! 😜';
-    gameReward.classList.add('hidden');
-    playCutePop(520);
-  });
-
-  // =========================================================
-  // 7. Flip Cards
-  // =========================================================
-  const flipCards = document.querySelectorAll('.flip-card');
-  flipCards.forEach((card) => {
-    card.addEventListener('click', () => {
-      card.classList.toggle('flipped');
-      playCutePop(540);
-      if (card.classList.contains('flipped')) {
-        addGlobalScore(15);
-        launchConfetti(35);
-      }
-    });
-    card.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        card.classList.toggle('flipped');
-      }
-    });
-  });
-
-  // =========================================================
-  // 8. Spin Wheel
-  // =========================================================
-  const spinBtn = document.getElementById('spin-btn');
-  const wheelDisc = document.getElementById('wheel-disc');
-  const wheelResult = document.getElementById('wheel-result');
-  let currentRotation = 0;
-  let isSpinning = false;
-
-  const prizes = [
-    '🧋 Waktunya jajan Boba atau minuman favorit!',
-    '🎵 Putar playlist lagu kesukaanmu sekarang!',
-    '😴 Ambil waktu istirahat & tidur siang sebentar!',
-    '🍫 Makan coklat biar mood balik 100%!',
-    '🎬 Nonton satu episode anime atau film seru!',
-    '🤗 Dapat peluk & semangat penuh dari aku!'
+  // 5. To-Do List
+  const todoForm = document.getElementById('todo-form');
+  const todoInput = document.getElementById('todo-input');
+  const todoList = document.getElementById('todo-list');
+  let todos = JSON.parse(localStorage.getItem('j-todos')) || [
+    { text: 'Selesaikan tugas sekolah tepat waktu', completed: false },
+    { text: 'Rencana kencan akhir pekan', completed: true }
   ];
 
-  spinBtn.addEventListener('click', () => {
-    if (isSpinning) return;
-    isSpinning = true;
+  function renderTodos() {
+    todoList.innerHTML = '';
+    todos.forEach((todo, idx) => {
+      const li = document.createElement('li');
+      li.className = `todo-item ${todo.completed ? 'completed' : ''}`;
+      li.innerHTML = `
+        <span>${todo.text}</span>
+        <div class="todo-actions">
+          <button class="btn btn-secondary btn-sm" onclick="toggleTodo(${idx})">${todo.completed ? 'Batal' : 'Selesai'}</button>
+          <button class="btn-del" onclick="deleteTodo(${idx})">×</button>
+        </div>
+      `;
+      todoList.appendChild(li);
+    });
+  }
+  renderTodos();
+
+  window.toggleTodo = (idx) => {
+    todos[idx].completed = !todos[idx].completed;
+    localStorage.setItem('j-todos', JSON.stringify(todos));
+    renderTodos();
+    playCutePop(480);
+    if (todos[idx].completed) {
+      globalScore += 5;
+      updateScores();
+      launchConfetti(30);
+    }
+  };
+
+  window.deleteTodo = (idx) => {
+    todos.splice(idx, 1);
+    localStorage.setItem('j-todos', JSON.stringify(todos));
+    renderTodos();
+  };
+
+  todoForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    todos.push({ text: todoInput.value, completed: false });
+    localStorage.setItem('j-todos', JSON.stringify(todos));
+    renderTodos();
+    todoInput.value = '';
+    playCutePop(580);
+  });
+
+  // 6. Time Capsule
+  const capsuleForm = document.getElementById('capsule-form');
+  const capsuleGrid = document.getElementById('capsule-grid');
+  let capsules = JSON.parse(localStorage.getItem('j-capsules')) || [
+    { title: 'Untuk Julie di Ulang Tahun ke-17', msg: 'Semoga makin sukses dan bahagia selalu!', date: '2027-01-01' }
+  ];
+
+  function renderCapsules() {
+    capsuleGrid.innerHTML = '';
+    const today = new Date().toISOString().split('T')[0];
+    capsules.forEach(cap => {
+      const isReady = today >= cap.date;
+      const card = document.createElement('div');
+      card.className = 'capsule-card';
+      card.innerHTML = `
+        <h4>🔒 ${cap.title}</h4>
+        <p>Buka pada: ${cap.date}</p>
+        <div class="capsule-content" style="font-weight:700; color:var(--accent);">
+          ${isReady ? cap.msg : '🔒 Terkunci hingga tanggal tiba.'}
+        </div>
+      `;
+      capsuleGrid.appendChild(card);
+    });
+  }
+  renderCapsules();
+
+  capsuleForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    capsules.push({
+      title: document.getElementById('capsule-title').value,
+      msg: document.getElementById('capsule-msg').value,
+      date: document.getElementById('capsule-date').value
+    });
+    localStorage.setItem('j-capsules', JSON.stringify(capsules));
+    renderCapsules();
+    capsuleForm.reset();
+    playCutePop(620);
+    launchConfetti(50);
+  });
+
+  // 7. Soundtrack Player
+  const songList = document.getElementById('song-list');
+  const audioPlayer = document.getElementById('audio-player');
+  const nowPlayingTitle = document.getElementById('now-playing-title');
+  const nowPlayingDesc = document.getElementById('now-playing-desc');
+
+  songList.addEventListener('click', (e) => {
+    const item = e.target.closest('.song-item');
+    if (!item) return;
+    document.querySelectorAll('.song-item').forEach(s => s.classList.remove('active'));
+    item.classList.add('active');
+    const src = item.getAttribute('data-src');
+    const title = item.getAttribute('data-title');
+    const desc = item.getAttribute('data-desc');
+
+    nowPlayingTitle.textContent = title;
+    nowPlayingDesc.textContent = `"${desc}"`;
+    audioPlayer.src = src;
+    audioPlayer.play().catch(() => {});
     playCutePop(500);
-    wheelResult.textContent = 'Roda sedang berputar... 🎡';
+  });
 
-    const extraDeg = Math.floor(Math.random() * 360) + 1440;
-    currentRotation += extraDeg;
-    wheelDisc.style.transform = `rotate(${currentRotation}deg)`;
+  // 9. Love Coupons
+  const couponsGrid = document.getElementById('coupons-grid');
+  const couponsData = [
+    { id: 1, title: '🎟️ Kupon Ditraktir Boba', desc: 'Tukarkan kapan saja saat kita jalan bareng!', used: false },
+    { id: 2, title: '🎟️ Kupon Ditemenin Curhat', desc: 'Baginda siap mendengarkan cerita sampai ngantuk.', used: false },
+    { id: 3, title: '🎟️ Kupon Bantuan Tugas', desc: 'Bantuan penuh buat ngerjain tugas sekolah / animasi.', used: false }
+  ];
 
-    setTimeout(() => {
-      isSpinning = false;
-      const normalized = currentRotation % 360;
-      const sliceIndex = Math.floor(((360 - normalized + 60) % 360) / 60);
-      wheelResult.textContent = `Hasil: ${prizes[sliceIndex]}`;
-      addGlobalScore(20);
-      playCutePop(700);
+  function renderCoupons() {
+    couponsGrid.innerHTML = '';
+    couponsData.forEach(c => {
+      const card = document.createElement('div');
+      card.className = 'coupon-card';
+      card.innerHTML = `
+        <h4>${c.title}</h4>
+        <p>${c.desc}</p>
+        <button class="btn ${c.used ? 'btn-secondary' : 'btn-primary'} btn-sm" onclick="redeemCoupon(${c.id})">
+          ${c.used ? '✓ Sudah Diklaim' : '🎁 Klaim Kupon'}
+        </button>
+      `;
+      couponsGrid.appendChild(card);
+    });
+  }
+  renderCoupons();
+
+  window.redeemCoupon = (id) => {
+    const target = couponsData.find(c => c.id === id);
+    if (target && !target.used) {
+      target.used = true;
+      renderCoupons();
+      playCutePop(750);
+      launchConfetti(80);
+      globalScore += 25;
+      updateScores();
+    }
+  };
+
+  // 10. Wishlist & Bucket List
+  const dreamForm = document.getElementById('dream-form');
+  const dreamInput = document.getElementById('dream-input');
+  const dreamList = document.getElementById('dream-list');
+  let dreams = JSON.parse(localStorage.getItem('j-dreams')) || [
+    { text: 'Nonton konser musik bareng', completed: false },
+    { text: 'Kuliah / sukses di bidang impian', completed: false }
+  ];
+
+  function renderDreams() {
+    dreamList.innerHTML = '';
+    dreams.forEach((dream, idx) => {
+      const li = document.createElement('li');
+      li.className = `todo-item ${dream.completed ? 'completed' : ''}`;
+      li.innerHTML = `
+        <span>🎯 ${dream.text}</span>
+        <div class="todo-actions">
+          <button class="btn btn-secondary btn-sm" onclick="toggleDream(${idx})">${dream.completed ? 'Batal' : 'Terwujud'}</button>
+          <button class="btn-del" onclick="deleteDream(${idx})">×</button>
+        </div>
+      `;
+      dreamList.appendChild(li);
+    });
+  }
+  renderDreams();
+
+  window.toggleDream = (idx) => {
+    dreams[idx].completed = !dreams[idx].completed;
+    localStorage.setItem('j-dreams', JSON.stringify(dreams));
+    renderDreams();
+    playCutePop(520);
+    if (dreams[idx].completed) {
+      globalScore += 30;
+      updateScores();
       launchConfetti(90);
-    }, 3600);
+    }
+  };
+
+  window.deleteDream = (idx) => {
+    dreams.splice(idx, 1);
+    localStorage.setItem('j-dreams', JSON.stringify(dreams));
+    renderDreams();
+  };
+
+  dreamForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    dreams.push({ text: dreamInput.value, completed: false });
+    localStorage.setItem('j-dreams', JSON.stringify(dreams));
+    renderDreams();
+    dreamInput.value = '';
+    playCutePop(590);
   });
 });
