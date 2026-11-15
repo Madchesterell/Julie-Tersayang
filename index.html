@@ -20,6 +20,10 @@
         Julie's Space
       </a>
       <div class="nav-actions">
+        <div class="nav-score-pill" title="Total Skor Kebahagiaan">
+          <span>🧡</span>
+          <strong id="global-score">0</strong>
+        </div>
         <button id="theme-toggle" class="btn-icon" aria-label="Ganti Mode Gelap atau Terang" title="Ganti Tema">
           <span class="icon-sun">☀️</span>
           <span class="icon-moon">🌙</span>
@@ -36,14 +40,14 @@
           <div class="badge">✨ Spesial untuk Julie Cahya Karmila</div>
           <h1>Dunia kecil penuh warna buat kamu yang selalu hebat.</h1>
           <p class="hero-desc">
-            Lagi capek sama tugas sekolah atau organisasi? Istirahat sebentar di sini. Klik tombol-tombol di bawah ini buat main dan ambil energi positifmu lagi!
+            Lagi capek sama tugas sekolah atau organisasi? Istirahat sebentar di sini. Mainin semua mini-game lucu di bawah ini sepuasnya biar mood kamu balik 100%!
           </p>
           <div class="hero-cta">
             <button id="btn-hug" class="btn btn-primary">
               <span>🎉 Kirim Semangat & Confetti</span>
             </button>
-            <a href="#playground" class="btn btn-secondary">
-              <span>🎮 Mulai Main</span>
+            <a href="#cat-game" class="btn btn-secondary">
+              <span>🐾 Mulai Main</span>
             </a>
           </div>
           <div class="hug-counter">
@@ -66,13 +70,72 @@
       </div>
     </section>
 
-    <!-- Screen 2: Mini Game - Tangkap Semangat -->
+    <!-- Screen 2: NEW REPLAYABLE GAME 1 - Tangkap Mochi & Bintang (Arcade Catcher) -->
+    <section id="cat-game" class="section arcade-section">
+      <div class="wrap">
+        <div class="section-head-flex">
+          <div class="section-head">
+            <span class="eyebrow">01 • ARCADE LUCU (REPLAYABLE)</span>
+            <h2>Tangkap Camilan Mochi!</h2>
+            <p>Gerakkan keranjang oranye di bawah pakai mouse atau sentuhan jari buat nangkap Mochi & Bintang jatuh. Awas jangan sampai kena awan ngantuk! 💤</p>
+          </div>
+          <div class="arcade-stats">
+            <div class="stat-box">
+              <span>Skor</span>
+              <strong id="arcade-score">0</strong>
+            </div>
+            <div class="stat-box">
+              <span>Rekor</span>
+              <strong id="arcade-best">0</strong>
+            </div>
+            <div class="stat-box">
+              <span>Waktu</span>
+              <strong id="arcade-time">25s</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="arcade-wrapper">
+          <canvas id="arcade-canvas"></canvas>
+          <div id="arcade-overlay" class="arcade-overlay">
+            <div class="overlay-card">
+              <div class="cute-mascot">🐱🍊</div>
+              <h3 id="arcade-overlay-title">Siap Tangkap Mochi?</h3>
+              <p id="arcade-overlay-desc">Tangkap 🍡 (+10) dan ⭐ (+25), hindari 💤 (-15) selama 25 detik!</p>
+              <button id="start-arcade-btn" class="btn btn-primary">▶ Mulai Tangkap!</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Screen 3: NEW REPLAYABLE GAME 2 - Pencet Bubble Wrap Gemoy -->
+    <section id="bubble-section" class="section bubble-section">
+      <div class="wrap">
+        <div class="section-head-flex">
+          <div class="section-head">
+            <span class="eyebrow">02 • ANTI STRESS POP-IT</span>
+            <h2>Pencet Bubble Gemoy!</h2>
+            <p>Lagi kesel atau penat? Pencetin semua gelembung oranye imut ini sampai meletup dengan suara *pop* lucu dan pesan penyemangat acak!</p>
+          </div>
+          <button id="reset-bubbles-btn" class="btn btn-secondary">🔄 Isi Ulang Gelembung</button>
+        </div>
+
+        <div class="bubble-toast" id="bubble-toast">
+          Klik gelembung mana saja buat denger bunyi *pop* dan dapet pujian imut! ✨
+        </div>
+
+        <div class="bubble-grid" id="bubble-grid"></div>
+      </div>
+    </section>
+
+    <!-- Screen 4: Mini Game - Tangkap Tombol Pemalu -->
     <section id="playground" class="section playground-section">
       <div class="wrap">
         <div class="section-head">
-          <span class="eyebrow">01 • MINI GAME</span>
+          <span class="eyebrow">03 • KEJAR-KEJARAN</span>
           <h2>Tangkap Tombol Bahagia</h2>
-          <p>Tombol oranye di dalam kotak ini agak pemalu. Coba kejar dan klik sampai tertangkap buat dapetin pesan rahasia!</p>
+          <p>Tombol oranye di dalam kotak ini agak pemalu. Coba kejar dan klik sampai tertangkap buat dapetin pesan rahasia acak!</p>
         </div>
 
         <div class="game-arena" id="game-arena">
@@ -89,11 +152,11 @@
       </div>
     </section>
 
-    <!-- Screen 3: Kartu Kejutan Interaktif -->
+    <!-- Screen 5: Kartu Kejutan Interaktif -->
     <section id="cards" class="section cards-section">
       <div class="wrap">
         <div class="section-head">
-          <span class="eyebrow">02 • KOTAK KEJUTAN</span>
+          <span class="eyebrow">04 • KOTAK KEJUTAN</span>
           <h2>Buka Kartu Penyemangat</h2>
           <p>Sentuh atau klik salah satu kartu di bawah ini sesuai suasana hatimu sekarang.</p>
         </div>
@@ -144,13 +207,13 @@
       </div>
     </section>
 
-    <!-- Screen 4: Spin Wheel Aktivitas / Mood -->
+    <!-- Screen 6: Spin Wheel Aktivitas / Mood -->
     <section id="wheel-section" class="section wheel-section">
       <div class="wrap wheel-layout">
         <div class="wheel-info">
-          <span class="eyebrow">03 • RODA KEBERUNTUNGAN</span>
+          <span class="eyebrow">05 • RODA KEBERUNTUNGAN</span>
           <h2>Bingung Mau Ngapain?</h2>
-          <p>Putar roda keberuntungan ini buat nentuin hadiah kecil atau aktivitas seru yang harus kamu lakuin habis ini.</p>
+          <p>Putar roda keberuntungan ini berkali-kali buat nentuin hadiah kecil atau aktivitas seru yang harus kamu lakuin habis ini.</p>
           <button id="spin-btn" class="btn btn-primary">🎡 Putar Roda Sekarang</button>
           <div id="wheel-result" class="wheel-result">
             Hasil putaran akan muncul di sini...
