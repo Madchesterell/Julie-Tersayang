@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Julie's Happy Space — Taman Bermain & Penyemangat</title>
+  <title>Julie & Baginda — Our Safe & Happy Space</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -17,14 +17,14 @@
     <div class="wrap nav-inner">
       <a href="#hero" class="brand">
         <span class="brand-dot"></span>
-        Julie's Space
+        J & B Space 🧡
       </a>
       <div class="nav-actions">
-        <div class="nav-score-pill" title="Total Skor Kebahagiaan">
-          <span>🧡</span>
-          <strong id="global-score">0</strong>
+        <div class="nav-score-pill" title="Love Points Bersama">
+          <span>✨</span>
+          <strong id="global-score">100</strong>
         </div>
-        <button id="theme-toggle" class="btn-icon" aria-label="Ganti Mode Gelap atau Terang" title="Ganti Tema">
+        <button id="theme-toggle" class="btn-icon" aria-label="Ganti Tema" title="Ganti Tema">
           <span class="icon-sun">☀️</span>
           <span class="icon-moon">🌙</span>
         </button>
@@ -33,211 +33,286 @@
   </header>
 
   <main>
-    <!-- Screen 1: Hero Section -->
+    <!-- Hero / Welcome Section -->
     <section id="hero" class="section hero">
       <div class="wrap hero-grid">
         <div class="hero-content" data-enter>
-          <div class="badge">✨ Spesial untuk Julie Cahya Karmila</div>
-          <h1>Dunia kecil penuh warna buat kamu yang selalu hebat.</h1>
+          <div class="badge">✨ Ruang Spesial Julie Cahya Karmila & Baginda</div>
+          <h1>Our Little World, Built With Pure Love.</h1>
           <p class="hero-desc">
-            Lagi capek sama tugas sekolah atau organisasi? Istirahat sebentar di sini. Mainin semua mini-game lucu di bawah ini sepuasnya biar mood kamu balik 100%!
+            Aplikasi privat khusus kita berdua. Tempat nyatet jadwal, ngecek mood hari ini, simpan kenangan foto, kupon sayang, hingga kapsul waktu rahasia!
           </p>
           <div class="hero-cta">
             <button id="btn-hug" class="btn btn-primary">
-              <span>🎉 Kirim Semangat & Confetti</span>
+              <span>🎉 Kirim Peluk & Semangat</span>
             </button>
-            <a href="#cat-game" class="btn btn-secondary">
-              <span>🐾 Mulai Main</span>
+            <a href="#features" class="btn btn-secondary">
+              <span>🚀 Jelajahi Fitur</span>
             </a>
           </div>
           <div class="hug-counter">
-            Total energi terkumpul hari ini: <strong id="energy-count">0</strong> poin semangat
+            Total peluk virtual terkirim: <strong id="energy-count">0</strong> kali
           </div>
         </div>
 
         <div class="hero-visual" data-enter>
           <div class="orbit-card">
-            <div class="floating-pill pill-1">⚡ Energi 100%</div>
-            <div class="floating-pill pill-2">🌟 Hebat Banget</div>
-            <div class="floating-pill pill-3">🧡 Tetap Ceria</div>
+            <div class="floating-pill pill-1">🌸 Julie's Mood: Happy</div>
+            <div class="floating-pill pill-2">☕ Kopi & Cerita</div>
+            <div class="floating-pill pill-3">🧡 Forever Us</div>
             <div class="center-avatar">
               <div class="avatar-ring"></div>
-              <div class="avatar-core">JCK</div>
+              <div class="avatar-core">J & B</div>
             </div>
-            <p class="orbit-caption">Mood Booster Pribadi • 16th Edition</p>
+            <p class="orbit-caption">Private Couple Hub • Est. 2026</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Screen 2: NEW REPLAYABLE GAME 1 - Tangkap Mochi & Bintang (Arcade Catcher) -->
-    <section id="cat-game" class="section arcade-section">
-      <div class="wrap">
-        <div class="section-head-flex">
-          <div class="section-head">
-            <span class="eyebrow">01 • ARCADE LUCU (REPLAYABLE)</span>
-            <h2>Tangkap Camilan Mochi!</h2>
-            <p>Gerakkan keranjang oranye di bawah pakai mouse atau sentuhan jari buat nangkap Mochi & Bintang jatuh. Awas jangan sampai kena awan ngantuk! 💤</p>
-          </div>
-          <div class="arcade-stats">
-            <div class="stat-box">
-              <span>Skor</span>
-              <strong id="arcade-score">0</strong>
-            </div>
-            <div class="stat-box">
-              <span>Rekor</span>
-              <strong id="arcade-best">0</strong>
-            </div>
-            <div class="stat-box">
-              <span>Waktu</span>
-              <strong id="arcade-time">25s</strong>
-            </div>
-          </div>
-        </div>
-
-        <div class="arcade-wrapper">
-          <canvas id="arcade-canvas"></canvas>
-          <div id="arcade-overlay" class="arcade-overlay">
-            <div class="overlay-card">
-              <div class="cute-mascot">🐱🍊</div>
-              <h3 id="arcade-overlay-title">Siap Tangkap Mochi?</h3>
-              <p id="arcade-overlay-desc">Tangkap 🍡 (+10) dan ⭐ (+25), hindari 💤 (-15) selama 25 detik!</p>
-              <button id="start-arcade-btn" class="btn btn-primary">▶ Mulai Tangkap!</button>
-            </div>
-          </div>
-        </div>
+    <!-- Features Dashboard Navigation Bar -->
+    <div id="features" class="features-nav-bar">
+      <div class="wrap features-nav-scroll">
+        <button class="feat-tab active" data-target="panel-calendar">📅 Kalender & Red Day</button>
+        <button class="feat-tab" data-target="panel-mood">🍊 Mood Tracker</button>
+        <button class="feat-tab" data-target="panel-gallery">🖼️ Galeri Momen</button>
+        <button class="feat-tab" data-target="panel-reminders">⏰ Pengingat</button>
+        <button class="feat-tab" data-target="panel-todo">📝 To-Do List</button>
+        <button class="feat-tab" data-target="panel-capsule">💌 Time Capsule</button>
+        <button class="feat-tab" data-target="panel-music">🎵 Our Soundtrack</button>
+        <button class="feat-tab" data-target="panel-map">🗺️ Memory Map</button>
+        <button class="feat-tab" data-target="panel-coupons">🎟️ Kupon Sayang</button>
+        <button class="feat-tab" data-target="panel-dreams">🎯 Wishlist & Dreams</button>
       </div>
-    </section>
+    </div>
 
-    <!-- Screen 3: NEW REPLAYABLE GAME 2 - Pencet Bubble Wrap Gemoy -->
-    <section id="bubble-section" class="section bubble-section">
-      <div class="wrap">
-        <div class="section-head-flex">
-          <div class="section-head">
-            <span class="eyebrow">02 • ANTI STRESS POP-IT</span>
-            <h2>Pencet Bubble Gemoy!</h2>
-            <p>Lagi kesel atau penat? Pencetin semua gelembung oranye imut ini sampai meletup dengan suara *pop* lucu dan pesan penyemangat acak!</p>
-          </div>
-          <button id="reset-bubbles-btn" class="btn btn-secondary">🔄 Isi Ulang Gelembung</button>
-        </div>
+    <!-- Features Content Panels -->
+    <div class="wrap panels-container">
 
-        <div class="bubble-toast" id="bubble-toast">
-          Klik gelembung mana saja buat denger bunyi *pop* dan dapet pujian imut! ✨
-        </div>
-
-        <div class="bubble-grid" id="bubble-grid"></div>
-      </div>
-    </section>
-
-    <!-- Screen 4: Mini Game - Tangkap Tombol Pemalu -->
-    <section id="playground" class="section playground-section">
-      <div class="wrap">
+      <!-- 1. Kalender Tanggal & Red Day Tracker -->
+      <div id="panel-calendar" class="feat-panel active">
         <div class="section-head">
-          <span class="eyebrow">03 • KEJAR-KEJARAN</span>
-          <h2>Tangkap Tombol Bahagia</h2>
-          <p>Tombol oranye di dalam kotak ini agak pemalu. Coba kejar dan klik sampai tertangkap buat dapetin pesan rahasia acak!</p>
+          <span class="eyebrow">FITUR 01</span>
+          <h2>Kalender Cinta & Red Day Tracker</h2>
+          <p>Catat tanggal penting hubungan dan estimasi siklus pribadi dengan penuh perhatian.</p>
         </div>
+        <div class="grid-two">
+          <div class="card-box">
+            <h3>❤️ Hari Spesial Kita</h3>
+            <ul id="anniversary-list" class="styled-list">
+              <li><span>First Meet / Kenalan</span> <strong>12 Jan</strong></li>
+              <li><span>Official Dating</span> <strong>25 Feb</strong></li>
+            </ul>
+            <form id="add-event-form" class="inline-form">
+              <input type="text" id="event-name" placeholder="Nama acara..." required />
+              <input type="date" id="event-date" required />
+              <button type="submit" class="btn btn-primary btn-sm">+ Tambah</button>
+            </form>
+          </div>
 
-        <div class="game-arena" id="game-arena">
-          <button id="runaway-btn" class="btn btn-primary runaway-btn">
-            Klik Aku Dong! 😜
-          </button>
-          <div id="game-reward" class="game-reward hidden">
-            <div class="reward-badge">🏆 Berhasil Ditangkap!</div>
-            <h3 id="reward-title">Kamu Keren Banget, Julie!</h3>
-            <p id="reward-text">Gak peduli seberapa sibuk hari ini, senyum kamu selalu jadi hal paling juara. Jangan lupa minum air putih ya!</p>
-            <button id="reset-game" class="btn btn-secondary">Main Lagi ↻</button>
+          <div class="card-box">
+            <h3>🌸 Pelacak Red Day (Julie)</h3>
+            <p class="text-sm text-muted">Estimasi siklus bulanan agar Baginda bisa lebih siaga & peka:</p>
+            <div class="red-day-box">
+              <div class="red-stat">
+                <span>Prediksi Mulai:</span>
+                <strong id="red-start-date">Menghitung...</strong>
+              </div>
+              <div class="red-stat">
+                <span>Status Siaga:</span>
+                <strong id="red-status" class="badge-status">Aman & Ceria ✨</strong>
+              </div>
+            </div>
+            <button id="btn-log-red" class="btn btn-secondary btn-sm" style="margin-top:14px;">🔄 Perbarui Tanggal Datang Bulan Ini</button>
           </div>
         </div>
       </div>
-    </section>
 
-    <!-- Screen 5: Kartu Kejutan Interaktif -->
-    <section id="cards" class="section cards-section">
-      <div class="wrap">
+      <!-- 2. Daily Mood Meter -->
+      <div id="panel-mood" class="feat-panel">
         <div class="section-head">
-          <span class="eyebrow">04 • KOTAK KEJUTAN</span>
-          <h2>Buka Kartu Penyemangat</h2>
-          <p>Sentuh atau klik salah satu kartu di bawah ini sesuai suasana hatimu sekarang.</p>
+          <span class="eyebrow">FITUR 02</span>
+          <h2>Indikator Mood Harian Julie</h2>
+          <p>Pilih bagaimana perasaan Julie hari ini agar Baginda tahu apa yang harus dilakukan.</p>
         </div>
+        <div class="card-box text-center">
+          <div class="mood-selector" id="mood-selector">
+            <button class="mood-btn" data-mood="Happy" data-msg="Senyum terus hari ini! 🌟">😊 Happy</button>
+            <button class="mood-btn" data-mood="Tired" data-msg="Lagi banyak tugas sekolah/MPK. Butuh istirahat. 🛋️">😴 Capek</button>
+            <button class="mood-btn" data-mood="Romantic" data-msg="Lagi kangen berat sama Baginda! 🧡">🥰 Kangen</button>
+            <button class="mood-btn" data-mood="Emotional" data-msg="Sensitif / Red day. Butuh dibelikan coklat & sabar ekstra! 🍫">🥺 Sensitif</button>
+          </div>
+          <div class="mood-display-box" id="mood-display-box">
+            <h4>Mood Hari Ini: <span id="current-mood-text">😊 Happy</span></h4>
+            <p id="mood-advice">Pesan otomatis: Senyum terus hari ini! 🌟</p>
+          </div>
+        </div>
+      </div>
 
-        <div class="cards-grid">
-          <div class="flip-card" tabindex="0">
-            <div class="flip-card-inner">
-              <div class="flip-card-front">
-                <span class="card-num">01</span>
-                <h3>Lagi Capek?</h3>
-                <p>Klik untuk buka pesan</p>
-              </div>
-              <div class="flip-card-back">
-                <h4>Tarik Napas Dulu 🌬️</h4>
-                <p>Kamu gak harus menyelesaikan semuanya dalam satu detik. Pelan-pelan aja, kamu udah melakukan yang terbaik hari ini.</p>
-              </div>
+      <!-- 3. Daily Moments Gallery -->
+      <div id="panel-gallery" class="feat-panel">
+        <div class="section-head">
+          <span class="eyebrow">FITUR 03</span>
+          <h2>Galeri Aktivitas Hari Ini</h2>
+          <p>Simpan momen foto seru atau tangkapan layar kegiatan kalian berdua di sini.</p>
+        </div>
+        <div class="card-box">
+          <form id="gallery-form" class="inline-form" style="margin-bottom:24px;">
+            <input type="text" id="gallery-title" placeholder="Judul momen (cth: Nugas bareng di kafe)" required />
+            <input type="url" id="gallery-img" placeholder="Link foto (URL gambar)..." required />
+            <button type="submit" class="btn btn-primary btn-sm">+ Upload Momen</button>
+          </form>
+          <div class="gallery-grid" id="gallery-grid">
+            <!-- Dynamic Gallery Items -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Smart Reminders -->
+      <div id="panel-reminders" class="feat-panel">
+        <div class="section-head">
+          <span class="eyebrow">FITUR 04</span>
+          <h2>Pengingat & Perhatian Sayang</h2>
+          <p>Jangan lewatkan jadwal penting, minum air putih, atau waktu istirahat.</p>
+        </div>
+        <div class="grid-two">
+          <div class="card-box">
+            <h3>⏰ Tambah Pengingat Baru</h3>
+            <form id="reminder-form" class="stacked-form">
+              <input type="text" id="rem-text" placeholder="Isi pengingat (cth: Minum air & istirahat)..." required />
+              <input type="time" id="rem-time" required />
+              <button type="submit" class="btn btn-primary">+ Simpan Pengingat</button>
+            </form>
+          </div>
+          <div class="card-box">
+            <h3>📋 Daftar Pengingat Aktif</h3>
+            <ul id="reminder-list" class="styled-list">
+              <!-- Dynamic Reminders -->
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. To-Do List Bersama -->
+      <div id="panel-todo" class="feat-panel">
+        <div class="section-head">
+          <span class="eyebrow">FITUR 05</span>
+          <h2>To-Do List & Target Bareng</h2>
+          <p>Daftar tugas sekolah, organisasi, atau rencana kencan akhir pekan.</p>
+        </div>
+        <div class="card-box">
+          <form id="todo-form" class="inline-form" style="margin-bottom:20px;">
+            <input type="text" id="todo-input" placeholder="Tulis rencana atau tugas baru..." required />
+            <button type="submit" class="btn btn-primary btn-sm">+ Tambah Tugas</button>
+          </form>
+          <ul id="todo-list" class="todo-list-ul">
+            <!-- Dynamic Todo Items -->
+          </ul>
+        </div>
+      </div>
+
+      <!-- 6. Time Capsule Love Letter -->
+      <div id="panel-capsule" class="feat-panel">
+        <div class="section-head">
+          <span class="eyebrow">FITUR 06</span>
+          <h2>Kapsul Waktu Pesan Rahasia</h2>
+          <p>Surat cinta yang dikunci dan hanya bisa dibuka saat tanggal tertentu tiba.</p>
+        </div>
+        <div class="card-box">
+          <form id="capsule-form" class="stacked-form" style="margin-bottom:24px;">
+            <input type="text" id="capsule-title" placeholder="Judul Surat (cth: Untuk Julie di Ulang Tahun ke-17)" required />
+            <textarea id="capsule-msg" rows="3" placeholder="Tulis pesan rahasia di sini..." required></textarea>
+            <input type="date" id="capsule-date" required />
+            <button type="submit" class="btn btn-primary">🔒 Kunci Kapsul Waktu</button>
+          </form>
+          <h3>📦 Daftar Kapsul Tersimpan</h3>
+          <div id="capsule-grid" class="capsule-grid"></div>
+        </div>
+      </div>
+
+      <!-- 7. Our Soundtrack -->
+      <div id="panel-music" class="feat-panel">
+        <div class="section-head">
+          <span class="eyebrow">FITUR 07</span>
+          <h2>Our Soundtrack & Lagu Favorit</h2>
+          <p>Daftar lagu romantis dan penyemangat yang mewakili hari-hari kalian berdua.</p>
+        </div>
+        <div class="card-box">
+          <div class="music-player-card">
+            <div class="vinyl-disc">💿</div>
+            <div class="music-info">
+              <h3 id="now-playing-title">Lagu Kita — Indie Vibe</h3>
+              <p id="now-playing-desc">"Satu lagu buat nemenin Julie nugas hari ini."</p>
+              <audio id="audio-player" controls style="width:100%; margin-top:12px;">
+                <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+                Browser kamu tidak mendukung pemutar audio.
+              </audio>
             </div>
           </div>
-
-          <div class="flip-card" tabindex="0">
-            <div class="flip-card-inner">
-              <div class="flip-card-front">
-                <span class="card-num">02</span>
-                <h3>Butuh Alasan Senyum?</h3>
-                <p>Klik untuk buka pesan</p>
-              </div>
-              <div class="flip-card-back">
-                <h4>Kamu Istimewa ☀️</h4>
-                <p>Cara kamu memimpin, peduli sama sekitar, dan tetep ceria di umur 16 tahun ini bener-bener bikin kagum banyak orang.</p>
-              </div>
+          <div class="song-list" id="song-list" style="margin-top:20px;">
+            <div class="song-item active" data-src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" data-title="Lagu Kita — Indie Vibe" data-desc="Nemani hari sibuk Julie.">
+              🎵 Lagu Kita — Indie Vibe
             </div>
-          </div>
-
-          <div class="flip-card" tabindex="0">
-            <div class="flip-card-inner">
-              <div class="flip-card-front">
-                <span class="card-num">03</span>
-                <h3>Hadiah Kecil</h3>
-                <p>Klik untuk buka pesan</p>
-              </div>
-              <div class="flip-card-back">
-                <h4>Voucher Jajan! 🧋</h4>
-                <p>Screenshot kartu ini dan tukarkan buat jajan minuman atau camilan favorit kamu kapan pun kita ketemu!</p>
-              </div>
+            <div class="song-item" data-src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" data-title="Semangat Pagi — Acoustic" data-desc="Penyemangat sebelum berangkat sekolah.">
+              ☕ Semangat Pagi — Acoustic
             </div>
           </div>
         </div>
       </div>
-    </section>
 
-    <!-- Screen 6: Spin Wheel Aktivitas / Mood -->
-    <section id="wheel-section" class="section wheel-section">
-      <div class="wrap wheel-layout">
-        <div class="wheel-info">
-          <span class="eyebrow">05 • RODA KEBERUNTUNGAN</span>
-          <h2>Bingung Mau Ngapain?</h2>
-          <p>Putar roda keberuntungan ini berkali-kali buat nentuin hadiah kecil atau aktivitas seru yang harus kamu lakuin habis ini.</p>
-          <button id="spin-btn" class="btn btn-primary">🎡 Putar Roda Sekarang</button>
-          <div id="wheel-result" class="wheel-result">
-            Hasil putaran akan muncul di sini...
-          </div>
+      <!-- 8. Memory Map -->
+      <div id="panel-map" class="feat-panel">
+        <div class="section-head">
+          <span class="eyebrow">FITUR 08</span>
+          <h2>Memory Map (Tempat Berkesan)</h2>
+          <p>Titik lokasi spesial tempat kalian pernah jalan atau ngabisin waktu bareng.</p>
         </div>
-
-        <div class="wheel-stage">
-          <div class="wheel-pointer">▼</div>
-          <div class="wheel-disc" id="wheel-disc">
-            <div class="wheel-label" style="--i:0;"><span>🧋 Beli Boba</span></div>
-            <div class="wheel-label" style="--i:1;"><span>🎵 Denger Lagu</span></div>
-            <div class="wheel-label" style="--i:2;"><span>😴 Tidur Siang</span></div>
-            <div class="wheel-label" style="--i:3;"><span>🍫 Makan Coklat</span></div>
-            <div class="wheel-label" style="--i:4;"><span>🎬 Nonton Film</span></div>
-            <div class="wheel-label" style="--i:5;"><span>🤗 Peluk Virtual</span></div>
+        <div class="card-box">
+          <div class="mock-map">
+            <div class="map-pin pin-1" title="Kafe Kencan Pertama">📍 <span>Kafe Favorit Madiun</span></div>
+            <div class="map-pin pin-2" title="Sekolah / Tempat Organisasi">📍 <span>Sekolah Kita</span></div>
+            <div class="map-pin pin-3" title="Taman Kota">📍 <span>Taman Sore</span></div>
           </div>
+          <p class="text-sm text-muted text-center" style="margin-top:14px;">Klik pin di atas untuk melihat kenangan manis di lokasi tersebut.</p>
         </div>
       </div>
-    </section>
+
+      <!-- 9. Love Coupons -->
+      <div id="panel-coupons" class="feat-panel">
+        <div class="section-head">
+          <span class="eyebrow">FITUR 09</span>
+          <h2>Kupon Sayang (Love Coupons)</h2>
+          <p>Kupon digital interaktif yang bisa diklaim oleh Julie kapan pun!</p>
+        </div>
+        <div class="coupons-grid" id="coupons-grid">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+
+      <!-- 10. Wishlist & Bucket List -->
+      <div id="panel-dreams" class="feat-panel">
+        <div class="section-head">
+          <span class="eyebrow">FITUR 10</span>
+          <h2>Wishlist & Bucket List Bareng</h2>
+          <p>Impian dan rencana seru yang ingin kita wujudkan bersama.</p>
+        </div>
+        <div class="card-box">
+          <form id="dream-form" class="inline-form" style="margin-bottom:20px;">
+            <input type="text" id="dream-input" placeholder="Tulis impian baru (cth: Nonton konser bareng)..." required />
+            <button type="submit" class="btn btn-primary btn-sm">+ Tambah Impian</button>
+          </form>
+          <ul id="dream-list" class="todo-list-ul">
+            <!-- Dynamic Dreams -->
+          </ul>
+        </div>
+      </div>
+
+    </div>
   </main>
 
   <footer class="footer">
     <div class="wrap footer-inner">
-      <p>Dibuat khusus dengan sepenuh hati untuk <strong>Julie Cahya Karmila</strong>.</p>
+      <p>Dibuat khusus dengan sepenuh hati untuk <strong>Julie Cahya Karmila</strong> & Baginda.</p>
       <span class="footer-tag">100% Pure Orange & White Energy</span>
     </div>
   </footer>
