@@ -1,5 +1,5 @@
 /* =========================================================
-MILOLOO & REROLL — Ruang Privat Berdua
+MILOLOO & REROLL, Ruang Privat Berdua
 Firebase v10 Modular SDK · Auth + onSnapshot · setDoc
 ========================================================= */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -39,12 +39,12 @@ const NAMES = {
 };
 
 const MOODS = [
-  { key: "happy",    emoji: "😊", label: "Happy",         msg: "Senyum terus hari ini! 🌟" },
-  { key: "capek",    emoji: "😴", label: "Capek",         msg: "Istirahat dulu, jangan dipaksa. Peluk jauh. 🤍" },
-  { key: "kangen",   emoji: "🥰", label: "Kangen",        msg: "Sama. Ayo telepon sebentar nanti. 📞" },
-  { key: "sensitif", emoji: "🥺", label: "Sensitif",      msg: "Pelan-pelan ya. Aku dengerin, nggak akan nyela. 🫂" },
-  { key: "semangat", emoji: "🔥", label: "Semangat",      msg: "Gas! Aku dukung penuh hari ini. 💪" },
-  { key: "pelukan",  emoji: "🫂", label: "Butuh Pelukan", msg: "Anggap ini pelukan paling lama. 🤗" }
+  { key: "happy",    emoji: "", label: "Happy",         msg: "Senyum terus hari ini! " },
+  { key: "capek",    emoji: "", label: "Capek",         msg: "Istirahat dulu, jangan dipaksa. Peluk jauh. " },
+  { key: "kangen",   emoji: "", label: "Kangen",        msg: "Sama. Ayo telepon sebentar nanti. " },
+  { key: "sensitif", emoji: "", label: "Sensitif",      msg: "Pelan-pelan ya. Aku dengerin, nggak akan nyela. " },
+  { key: "semangat", emoji: "", label: "Semangat",      msg: "Gas! Aku dukung penuh hari ini. " },
+  { key: "pelukan",  emoji: "", label: "Butuh Pelukan", msg: "Anggap ini pelukan paling lama. " }
 ];
 
 const AUDIO_EXT = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|webm)(\?|#|$)/i;
@@ -56,7 +56,8 @@ const iso = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${p
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
 }[c]));
-const icon = (name, cls = "ico") => `<svg class="${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+const ICON_TEXT = { edit: "Ubah", trash: "Hapus", save: "Simpan", x: "Batalkan", undo: "", play: "Putar", check: "", link: "", pin: "" };
+const icon = (name) => ICON_TEXT[name] ?? "";
 
 function httpUrl(u) {
   try {
@@ -93,19 +94,34 @@ function openDialog(o) {
     const ok = $("dialog-confirm");
     ok.textContent = o.confirmText || "Ya, lanjut";
     ok.className = "btn " + (o.danger ? "btn-danger" : "btn-primary-solid");
+    lastTrigger = document.activeElement;
     $("app-dialog").classList.remove("hidden");
-    setTimeout(() => ok.focus(), 40);
+    syncInert();
+    ok.focus();
   });
 }
 function closeDialog(val) {
   $("app-dialog").classList.add("hidden");
+  syncInert();
   const r = dialogResolve; dialogResolve = null;
   if (r) r(val);
 }
 const showAlert  = (message, title = "Perhatian") => openDialog({ title, message, alertOnly: true, confirmText: "Mengerti" });
 const askConfirm = (message, o = {}) => openDialog({ title: o.title || "Konfirmasi", message, confirmText: o.confirmText || "Ya, lanjut", danger: o.danger });
-function openModal(id)  { $(id)?.classList.remove("hidden"); }
-function closeModal(id) { $(id)?.classList.add("hidden"); }
+let lastTrigger = null;
+function syncInert() {
+  const anyOpen = document.querySelector(".modal:not(.hidden)") !== null;
+  ["appRoot", "authGate"].forEach((id) => { const el = $(id); if (el) el.inert = anyOpen; });
+  if (!anyOpen && lastTrigger?.isConnected) { lastTrigger.focus(); lastTrigger = null; }
+}
+function openModal(id) {
+  const m = $(id); if (!m) return;
+  lastTrigger = document.activeElement;
+  m.classList.remove("hidden");
+  syncInert();
+  m.querySelector("input:not([type=hidden]), textarea, button")?.focus();
+}
+function closeModal(id) { $(id)?.classList.add("hidden"); syncInert(); }
 
 /* ───── SOUND & CONFETTI ───── */
 let audioCtx = null;
@@ -172,6 +188,8 @@ function applyTheme(t) {
   currentTheme = t;
   document.documentElement.setAttribute("data-theme", t);
   try { localStorage.setItem(THEME_KEY, t); } catch {}
+  const btn = $("theme-toggle");
+  if (btn) { btn.textContent = t === "dark" ? "Mode siang" : "Mode malam"; btn.setAttribute("aria-pressed", String(t === "dark")); }
 }
 try { currentTheme = localStorage.getItem(THEME_KEY) || "light"; } catch {}
 applyTheme(currentTheme);
@@ -179,17 +197,54 @@ applyTheme(currentTheme);
 /* ───── TABS ───── */
 const featTabs   = () => Array.from(document.querySelectorAll(".feat-tab"));
 const featPanels = () => Array.from(document.querySelectorAll(".feat-panel"));
-function activateTab(tab) {
+function activateTab(tab, { focus = false, updateHash = true } = {}) {
   featTabs().forEach((t) => {
     const on = t === tab;
     t.classList.toggle("active", on);
     t.setAttribute("aria-selected", String(on));
+    t.tabIndex = on ? 0 : -1;
   });
   featPanels().forEach((p) => p.classList.toggle("active", p.id === tab.dataset.target));
-  pop(500);
+  if (focus) tab.focus();
+  tab.scrollIntoView({ block: "nearest", inline: "center" });
+  if (updateHash) history.replaceState(null, "", "#" + tab.dataset.target.replace("panel-", ""));
+}
+function tabFromHash() {
+  const key = location.hash.slice(1);
+  return featTabs().find((t) => t.dataset.target === "panel-" + key);
+}
+function onTabKey(e) {
+  const tabs = featTabs(), i = tabs.indexOf(e.currentTarget);
+  const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+  if (next === undefined) return;
+  e.preventDefault();
+  activateTab(tabs[(next + tabs.length) % tabs.length], { focus: true });
 }
 
-/* ═════════ DEFAULT STATE (KOSONG — user mulai dari nol) ═════════ */
+/* ───── STATUS SINKRON (memuat, siap, galat) ───── */
+let syncState = "loading";
+const SYNC_TEXT = {
+  loading: "Memuat catatan dari Firestore…",
+  error: "Tidak tersambung ke Firestore. Perubahan baru belum tersimpan di perangkat lain."
+};
+function setSync(state) {
+  syncState = state;
+  const el = $("sync-status");
+  if (el) {
+    el.textContent = state === "ready" ? "" : SYNC_TEXT[state];
+    el.classList.toggle("is-error", state === "error");
+  }
+  applySyncHints();
+}
+function applySyncHints() {
+  if (syncState === "ready") return;
+  document.querySelectorAll(".empty-hint").forEach((el) => {
+    el.classList.add("state");
+    el.textContent = syncState === "loading" ? "Memuat…" : "Belum bisa memuat. Periksa koneksi lalu muat ulang halaman.";
+  });
+}
+
+/* DEFAULT STATE (KOSONG, user mulai dari nol) */
 function defaults() {
   return {
     version: 2,
@@ -255,7 +310,7 @@ function updateQuota() {
   const kb = docBytes() / 1024;
   const warn = kb > 750;
   el.className = "text-sm " + (warn ? "quota-warn" : "text-muted");
-  el.textContent = `Penyimpanan terpakai: ${kb.toFixed(1)} KB${warn ? " — mendekati batas 1 MB per dokumen Firestore" : ""}`;
+  el.textContent = `Penyimpanan terpakai: ${kb.toFixed(1)} KB${warn ? ", mendekati batas 1 MB per dokumen Firestore" : ""}`;
 }
 async function save() {
   updateQuota();
@@ -276,7 +331,7 @@ function renderScore() {
   if (ec) ec.textContent = S.meta.hugs;
 }
 
-/* ═══════════ RENDER FITUR ═══════════ */
+/* RENDER FITUR */
 
 /* 01 EVENTS */
 function nextOccurrence(isoDate) {
@@ -309,10 +364,10 @@ function renderEvents() {
     const days = nextOccurrence(ev.date);
     const chip = days === null ? "" : `<span class="chip-due">${days === 0 ? "Hari ini" : "H-" + days}</span>`;
     return `<li>
-      <div class="row-main"><span class="row-title">${esc(ev.name)}</span><span class="row-sub">Berulang tiap tahun · ${esc(fmtFull(ev.date))}</span></div>
+      <div class="row-main"><span class="row-title">${esc(ev.name)}</span><span class="row-sub">Berulang tiap tahun, ${esc(fmtFull(ev.date))}</span></div>
       <strong class="row-date">${esc(fmtDay(ev.date))}</strong>${chip}
       <div class="row-actions">
-        <button class="btn-icon btn-sm" type="button" data-act="event-edit" data-id="${ev.id}" aria-label="Edit">${icon("edit")}</button>
+        <button class="btn-icon btn-sm" type="button" data-act="event-edit" data-id="${ev.id}" aria-label="Ubah">${icon("edit")}</button>
         <button class="btn-icon btn-sm" type="button" data-act="event-del" data-id="${ev.id}" aria-label="Hapus">${icon("trash")}</button>
       </div></li>`;
   }).join("");
@@ -337,7 +392,7 @@ function renderRed() {
   set("red-start-date", fmtFull(c.nextStart));
   set("red-cycle-day", `Hari ke-${c.cycleDay} dari ${c.len}`);
   set("red-cycle-len", `${c.len} hari`);
-  set("red-status", c.status + (c.status === "Perhatian & Sayang Ekstra" ? " 🍫" : c.status === "Butuh Pelukan" ? " 🫂" : " ✨"));
+  set("red-status", c.status + (c.status === "Perhatian & Sayang Ekstra" ? " " : c.status === "Butuh Pelukan" ? " " : " "));
 }
 function openRedEdit() {
   const r = S.redDay;
@@ -360,13 +415,13 @@ function renderMoodTabs() {
   document.querySelectorAll(".sub-tab").forEach((t) => {
     const on = t.dataset.person === moodPerson;
     t.classList.toggle("active", on);
-    t.setAttribute("aria-selected", String(on));
+    t.setAttribute("aria-pressed", String(on));
   });
 }
 function renderMood() {
   const data = S.moods[moodPerson];
   const nick = NAMES[moodPerson].nick;
-  if ($("mood-board-title")) $("mood-board-title").textContent = `Indikator Mood Harian ${nick}`;
+  if ($("mood-board-title")) $("mood-board-title").textContent = `Mood ${nick}`;
   if ($("mood-selector")) {
     $("mood-selector").innerHTML = MOODS.map((m) =>
       `<button class="mood-btn ${data.mood === m.key ? "active" : ""}" type="button" data-mood="${m.key}" aria-pressed="${data.mood === m.key}">${m.emoji} ${m.label}</button>`
@@ -384,20 +439,22 @@ function renderMood() {
   const histEl = $("mood-history");
   if (histEl) {
     histEl.innerHTML = hist.length
-      ? hist.map((h) => `<li><span class="history-date">${esc(fmtDay(h.date))}</span><div class="history-body"><strong>${esc(h.emoji)} ${esc(h.label)}</strong>${h.note ? `<span> — ${esc(h.note)}</span>` : ""}</div></li>`).join("")
+      ? hist.map((h) => `<li><span class="history-date">${esc(fmtDay(h.date))}</span><div class="history-body"><strong>${esc(h.emoji)} ${esc(h.label)}</strong>${h.note ? `<span>: ${esc(h.note)}</span>` : ""}</div></li>`).join("")
       : `<li class="empty-hint">Belum ada riwayat mood.</li>`;
   }
   const jm = MOODS.find((m) => m.key === S.moods.julie.mood);
   const am = MOODS.find((m) => m.key === S.moods.abyant.mood);
-  if ($("hero-mood-pill")) $("hero-mood-pill").textContent = `🌸 ${NAMES.julie.nick}: ${jm ? jm.label : "—"}`;
-  const p2 = document.querySelector(".pill-2");
-  if (p2) p2.textContent = `☕ ${NAMES.abyant.nick}: ${am ? am.label : "—"}`;
+  const setT = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+  setT("hero-mood-julie", jm ? jm.label : "Belum diisi");
+  setT("hero-mood-abyant", am ? am.label : "Belum diisi");
+  setT("hero-note-julie", S.moods.julie.note || "Belum ada pesan hari ini.");
+  setT("hero-note-abyant", S.moods.abyant.note || "Belum ada pesan hari ini.");
 }
 function pushMoodHistory(person) {
   const d = S.moods[person];
   const m = MOODS.find((x) => x.key === d.mood);
   const today = iso();
-  const entry = { date: today, mood: d.mood, emoji: m ? m.emoji : "•", label: m ? m.label : "—", note: d.note || "" };
+  const entry = { date: today, mood: d.mood, emoji: m ? m.emoji : "•", label: m ? m.label : "belum diisi", note: d.note || "" };
   d.history = [entry, ...(d.history || []).filter((h) => h.date !== today)].slice(0, 14);
 }
 
@@ -406,7 +463,7 @@ function renderGallery() {
   const grid = $("gallery-grid"); if (!grid) return;
   if (!S.gallery.length) { grid.innerHTML = `<p class="empty-hint">Belum ada momen tersimpan.</p>`; return; }
   grid.innerHTML = S.gallery.map((g) => `<figure class="gallery-card">
-    <img src="${esc(g.src)}" alt="${esc(g.title)}" loading="lazy" />
+    <img class="gallery-img" src="${esc(g.src)}" alt="${esc(g.title)}" width="480" height="360" loading="lazy" />
     <button class="gallery-del" type="button" data-act="gal-del" data-id="${g.id}" aria-label="Hapus">${icon("trash")}</button>
     <figcaption class="gallery-overlay">${esc(g.title)}</figcaption>
   </figure>`).join("");
@@ -485,7 +542,7 @@ function renderReminders() {
   const cnt = $("reminders-count"); if (cnt) cnt.textContent = S.reminders.length;
   if (!S.reminders.length) { ul.innerHTML = `<li class="empty-hint">Belum ada pengingat aktif.</li>`; return; }
   ul.innerHTML = [...S.reminders].sort((a, b) => a.time.localeCompare(b.time)).map((r) => `<li>
-    <div class="row-main"><span class="row-title">⏰ ${esc(r.text)}</span></div>
+    <div class="row-main"><span class="row-title">${esc(r.text)}</span></div>
     <strong class="row-date">${esc(r.time)}</strong>
     <div class="row-actions">
       <button class="btn-icon btn-sm" type="button" data-act="rem-del" data-id="${r.id}" aria-label="Hapus">${icon("trash")}</button>
@@ -508,7 +565,7 @@ function startReminderScheduler() {
       const fireKey = `${todayKey}|${r.id}`;
       if (reminderFiredToday.has(fireKey)) return;
       reminderFiredToday.add(fireKey);
-      toast(`⏰ ${r.text}`, "info");
+      toast(`${r.text}`, "info");
       pop(660);
       launchConfetti(24);
     });
@@ -519,7 +576,7 @@ function startReminderScheduler() {
 /* 05 & 10 TASK LISTS */
 function taskRow(item, kind) {
   const cls = item.state === "done" ? "is-done" : item.state === "cancelled" ? "is-cancelled" : "";
-  const prefix = kind === "dream" ? "🎯 " : "";
+  const prefix = kind === "dream" ? "" : "";
   const checkIco = item.state === "done" ? icon("check") : "";
   const tag = item.state === "cancelled" ? `<span class="tag-cancelled">Dibatalkan</span>` : "";
   let actions = "";
@@ -554,10 +611,10 @@ function bindTaskList(listId, getArr, kind, rerender) {
       item.state = "done"; save(); rerender(); pop(480);
       launchConfetti(kind === "dream" ? 90 : 40);
       addScore(kind === "dream" ? 30 : 5);
-      toast(kind === "dream" ? "Impian terwujud 🎯" : "Tugas selesai 🎉", "success");
+      toast(kind === "dream" ? "Impian terwujud " : "Tugas selesai ", "success");
     } else if (act === `${kind}-cancel`) {
       item.state = "cancelled"; save(); rerender(); pop(400);
-      toast("Dibatalkan — baris tetap tercatat");
+      toast("Dibatalkan, baris tetap tercatat");
     } else if (act === `${kind}-restore`) {
       item.state = "active"; save(); rerender(); pop(520);
     } else if (act === `${kind}-del`) {
@@ -578,11 +635,11 @@ function renderCapsules() {
   grid.innerHTML = S.capsules.map((c) => {
     const open = today >= c.openDate;
     return `<article class="capsule-card ${open ? "is-open" : ""}">
-      <h4>${open ? "💌" : "🔒"} ${esc(c.title)}</h4>
+      <h4>${open ? "" : ""} ${esc(c.title)}</h4>
       <span class="cap-date">${open ? "Terbuka sejak" : "Buka pada"} ${esc(fmtFull(c.openDate))}</span>
-      <div class="capsule-content ${open ? "" : "locked"}">${open ? esc(c.msg) : "🔒 Terkunci sampai tanggalnya tiba."}</div>
+      <div class="capsule-content ${open ? "" : "locked"}">${open ? esc(c.msg) : "Terkunci sampai tanggalnya tiba."}</div>
       <div class="card-actions">
-        <button class="btn-icon btn-sm" type="button" data-act="cap-edit" data-id="${c.id}" aria-label="Edit">${icon("edit")}</button>
+        <button class="btn-icon btn-sm" type="button" data-act="cap-edit" data-id="${c.id}" aria-label="Ubah">${icon("edit")}</button>
         <button class="btn-icon btn-sm" type="button" data-act="cap-del" data-id="${c.id}" aria-label="Hapus">${icon("trash")}</button>
       </div>
     </article>`;
@@ -604,7 +661,7 @@ function renderSongs() {
       ${main}
       <span class="kind-tag">${isAudio ? "Audio" : "Tautan"}</span>
       ${linkBtn}
-      <button class="btn-icon btn-sm" type="button" data-act="song-edit" data-id="${s.id}" aria-label="Edit">${icon("edit")}</button>
+      <button class="btn-icon btn-sm" type="button" data-act="song-edit" data-id="${s.id}" aria-label="Ubah">${icon("edit")}</button>
       <button class="btn-icon btn-sm" type="button" data-act="song-del" data-id="${s.id}" aria-label="Hapus">${icon("trash")}</button>
     </div>`;
   }).join("");
@@ -651,7 +708,7 @@ function renderPlaces() {
       </div>
       <p class="place-memory">${esc(p.memory)}</p>
       <div class="card-actions">
-        <button class="btn-icon btn-sm" type="button" data-act="place-edit" data-id="${p.id}" aria-label="Edit">${icon("edit")}</button>
+        <button class="btn-icon btn-sm" type="button" data-act="place-edit" data-id="${p.id}" aria-label="Ubah">${icon("edit")}</button>
         <button class="btn-icon btn-sm" type="button" data-act="place-del" data-id="${p.id}" aria-label="Hapus">${icon("trash")}</button>
       </div>
     </article>`;
@@ -666,11 +723,11 @@ function renderCoupons() {
   if (avail) {
     avail.innerHTML = S.coupons.available.length
       ? S.coupons.available.map((c) => `<article class="coupon-card">
-          <h4>🎟️ ${esc(c.title)}</h4>
+          <h4>${esc(c.title)}</h4>
           <p>${esc(c.desc)}</p>
           <div class="coupon-actions">
-            <button class="btn btn-primary btn-sm" type="button" data-act="cp-claim" data-id="${c.id}">🎁 Klaim kupon</button>
-            <button class="btn-icon btn-sm" type="button" data-act="cp-edit" data-id="${c.id}" aria-label="Edit">${icon("edit")}</button>
+            <button class="btn btn-primary btn-sm" type="button" data-act="cp-claim" data-id="${c.id}">Klaim kupon</button>
+            <button class="btn-icon btn-sm" type="button" data-act="cp-edit" data-id="${c.id}" aria-label="Ubah">${icon("edit")}</button>
             <button class="btn-icon btn-sm" type="button" data-act="cp-del" data-id="${c.id}" aria-label="Hapus">${icon("trash")}</button>
           </div>
         </article>`).join("")
@@ -679,7 +736,7 @@ function renderCoupons() {
   if (hist) {
     hist.innerHTML = S.coupons.claimed.length
       ? [...S.coupons.claimed].sort((a, b) => (b.claimedAt || 0) - (a.claimedAt || 0)).map((c) => `<article class="coupon-card claimed">
-          <span class="badge-claimed">${icon("check")} Sudah Diklaim</span>
+          <span class="badge-claimed">${icon("check")} Sudah diklaim</span>
           <h4>${esc(c.title)}</h4>
           <p>${esc(c.desc)}</p>
           <span class="claimed-at">Diklaim ${esc(fmtStamp(c.claimedAt))}</span>
@@ -699,7 +756,7 @@ async function couponAction(e) {
     const [c] = S.coupons.available.splice(i, 1);
     S.coupons.claimed.push({ ...c, claimedAt: Date.now() });
     save(); renderCoupons(); pop(750); launchConfetti(80); addScore(25);
-    toast("Kupon diklaim 🎁", "success");
+    toast("Kupon diklaim ", "success");
   } else if (act === "cp-undo") {
     const i = S.coupons.claimed.findIndex((x) => x.id === id); if (i < 0) return;
     const [c] = S.coupons.claimed.splice(i, 1);
@@ -739,6 +796,7 @@ function renderAll() {
   renderCoupons();
   renderDreams();
   updateQuota();
+  applySyncHints();
 }
 
 /* ───── FIRESTORE SYNC ───── */
@@ -750,10 +808,12 @@ async function initFirestoreSync() {
     }
   } catch (err) {
     console.warn("Inisialisasi dokumen Firestore:", err);
+    setSync("error");
   }
   if (unsubRoom) unsubRoom();
   unsubRoom = onSnapshot(ROOM_REF, (docSnap) => {
     if (!docSnap.exists()) return;
+    setSync("ready");
     const data = docSnap.data();
     const incoming = JSON.stringify(data);
     if (incoming === lastSyncedFingerprint) return;
@@ -762,11 +822,12 @@ async function initFirestoreSync() {
     renderAll();
   }, (err) => {
     console.error("Listener real-time terganggu:", err);
+    setSync("error");
     toast("Koneksi real-time terganggu. Periksa konfigurasi Firebase.", "warn");
   });
 }
 
-/* ═══════════ AUTH (seperti Akasha) ═══════════ */
+/* AUTH (seperti Akasha) */
 let currentUser = null;
 
 function showAuthError(msg) {
@@ -779,9 +840,9 @@ function toggleAuthMode() {
   const isLogin = !$("loginForm")?.classList.contains("hidden");
   $("loginForm")?.classList.toggle("hidden", isLogin);
   $("registerForm")?.classList.toggle("hidden", !isLogin);
-  if ($("authTitle"))    $("authTitle").innerHTML    = isLogin ? 'Buat <span>Akun</span>' : 'Selamat <span>Datang</span>';
-  if ($("authSubtitle")) $("authSubtitle").textContent = isLogin ? "Daftar untuk membuka ruang privat kalian." : "Masuk untuk membuka ruang privat kalian berdua.";
-  if ($("authToggleText")) $("authToggleText").textContent = isLogin ? "Sudah punya akun? Masuk di sini" : "Belum punya akun? Daftar sekarang";
+  if ($("authTitle"))    $("authTitle").innerHTML    = isLogin ? 'Buat akun' : 'Masuk';
+  if ($("authSubtitle")) $("authSubtitle").textContent = isLogin ? "Daftar dengan email yang akan kalian pakai bersama." : "Pakai email yang kalian daftarkan.";
+  if ($("authToggleText")) $("authToggleText").textContent = isLogin ? "Sudah punya akun? Masuk" : "Belum punya akun? Daftar";
   clearAuthError();
 }
 
@@ -791,7 +852,7 @@ async function handleLogin(e) {
   const pw    = $("loginPassword")?.value || "";
   const btn   = $("loginBtn");
   if (!email || !pw) return showAuthError("Email dan kata sandi wajib diisi.");
-  if (btn) { btn.disabled = true; btn.textContent = "⏳ Masuk…"; }
+  if (btn) { btn.disabled = true; btn.textContent = "Memeriksa…"; }
   try {
     await setPersistence(auth, $("rememberMe")?.checked ? browserLocalPersistence : browserSessionPersistence);
     await signInWithEmailAndPassword(auth, email, pw);
@@ -805,7 +866,7 @@ async function handleLogin(e) {
     }[err.code] || "Gagal masuk: " + (err.message || err.code);
     showAuthError(msg);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Masuk ke ruang kerja"; }
+    if (btn) { btn.disabled = false; btn.textContent = "Buka buku"; }
   }
 }
 
@@ -817,7 +878,7 @@ async function handleRegister(e) {
   const btn   = $("registerBtn");
   if (!name || !email || !pw) return showAuthError("Semua field wajib diisi.");
   if (pw.length < 6) return showAuthError("Kata sandi minimal 6 karakter.");
-  if (btn) { btn.disabled = true; btn.textContent = "⏳ Mendaftar…"; }
+  if (btn) { btn.disabled = true; btn.textContent = "Mendaftarkan…"; }
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, pw);
     if (name) await updateProfile(cred.user, { displayName: name });
@@ -889,7 +950,7 @@ function updateTopbarUser(user) {
   if ($("topbarUserAvatar")) $("topbarUserAvatar").textContent = initials || "MR";
 }
 
-/* ═══════════ SETUP LISTENERS ═══════════ */
+/* SETUP LISTENERS */
 function on(id, ev, fn) {
   const el = typeof id === "string" ? $(id) : id;
   if (!el) { console.warn("[on] Elemen tidak ditemukan:", id); return null; }
@@ -918,7 +979,7 @@ function setupEventListeners() {
     addScore(15);
     pop(650);
     launchConfetti(85);
-    toast("Pelukan terkirim secara real-time 🧡", "success");
+    toast("Pelukan terkirim secara real-time ", "success");
   });
 
   on("theme-toggle", "click", () => {
@@ -929,7 +990,9 @@ function setupEventListeners() {
   // Tab navigasi
   document.querySelectorAll(".feat-tab").forEach((tab) => {
     on(tab, "click", () => activateTab(tab));
+    tab.addEventListener("keydown", onTabKey);
   });
+  window.addEventListener("hashchange", () => { const t = tabFromHash(); if (t) activateTab(t, { updateHash: false }); });
 
   // EVENTS
   on("add-event-form", "submit", (e) => {
@@ -981,7 +1044,7 @@ function setupEventListeners() {
       manualStatus: $("red-manual-input")?.value
     };
     save(); renderRed(); closeRedEdit(); pop(540);
-    toast("Prediksi Red Day diperbarui", "success");
+    toast("Catatan siklus diperbarui", "success");
   });
   on("btn-log-red", "click", () => {
     S.redDay.lastStart = iso();
@@ -1135,9 +1198,13 @@ function setupEventListeners() {
   // SONGS
   const player = $("audio-player"), vinyl = $("vinyl-disc");
   if (player) {
-    player.addEventListener("play",  () => vinyl?.classList.add("spinning"));
-    player.addEventListener("pause", () => vinyl?.classList.remove("spinning"));
-    player.addEventListener("ended", () => vinyl?.classList.remove("spinning"));
+    const setPlaying = (on) => {
+      vinyl?.classList.toggle("spinning", on);
+      const b = $("vinyl-toggle"); if (b) { b.textContent = on ? "Jeda" : "Putar"; b.setAttribute("aria-pressed", String(on)); }
+    };
+    player.addEventListener("play",  () => setPlaying(true));
+    player.addEventListener("pause", () => setPlaying(false));
+    player.addEventListener("ended", () => setPlaying(false));
     player.addEventListener("error", () => { if (player.src) showAudioError("Gagal memuat audio."); });
   }
   on("vinyl-toggle", "click", () => {
@@ -1264,12 +1331,25 @@ function setupEventListeners() {
   });
 }
 
-/* ═══════════ INIT ═══════════ */
+/* INIT */
 function init() {
   setupEventListeners();
   startReminderScheduler();
+  const dateEl = $("hero-date");
+  if (dateEl) dateEl.textContent = new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  if ($("footer-julie"))  $("footer-julie").textContent  = NAMES.julie.nick;
+  if ($("footer-reroll")) $("footer-reroll").textContent = NAMES.abyant.nick;
+  const initial = tabFromHash(); if (initial) activateTab(initial, { updateHash: false });
+  // Gambar yang gagal dimuat diganti keterangan teks (event error tidak menggelembung).
+  document.addEventListener("error", (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.classList.contains("gallery-img")) return;
+    const msg = document.createElement("div");
+    msg.className = "img-fail"; msg.textContent = "Gambar tidak bisa dimuat.";
+    img.replaceWith(msg);
+  }, true);
 
-  // Auth state listener — gerbang utama
+  // Auth state listener, gerbang utama
   onAuthStateChanged(auth, (user) => {
     if (user) {
       // Login berhasil
@@ -1277,6 +1357,8 @@ function init() {
       $("authGate")?.classList.add("hidden");
       $("appRoot")?.classList.remove("hidden");
       updateTopbarUser(user);
+      setSync("loading");
+      renderAll();
       initFirestoreSync();
     } else {
       // Logout / belum login
