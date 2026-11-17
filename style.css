@@ -102,7 +102,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px
 .auth-footer { margin-top: 1.2rem; text-align: center; }
 
 /* Bar atas */
-.topbar { border-bottom: 1.5px solid var(--rule); background: var(--paper); position: sticky; top: 0; z-index: 20; }
+.topbar { border-bottom: 1.5px solid var(--rule); background: var(--paper); }
 .topbar-inner { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; padding-block: .3rem; }
 .brand { font: 700 1.4rem var(--hand); text-decoration: none; }
 .brand span { color: var(--rose); }
