@@ -7,7 +7,7 @@
 <meta name="description" content="Buku catatan berdua: mood harian, tanggal penting, galeri, pengingat, kapsul waktu, lagu, tempat berkesan, kupon, dan wishlist." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Newsreader:opsz,wght@6..72,400;6..72,600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -94,8 +94,9 @@
 
   <p class="sync wrap" id="sync-status" role="status">Menyambungkan ke Firestore…</p>
 
+  <div class="shell wrap">
   <nav class="index" aria-label="Bagian buku">
-    <div class="wrap index-scroll" role="tablist" aria-label="Bagian buku">
+    <div class="index-scroll" role="tablist" aria-label="Bagian buku">
       <button class="feat-tab active" type="button" role="tab" id="tab-events" aria-controls="panel-events" aria-selected="true" data-target="panel-events">Tanggal penting</button>
       <button class="feat-tab" type="button" role="tab" id="tab-mood" aria-controls="panel-mood" aria-selected="false" tabindex="-1" data-target="panel-mood">Mood</button>
       <button class="feat-tab" type="button" role="tab" id="tab-gallery" aria-controls="panel-gallery" aria-selected="false" tabindex="-1" data-target="panel-gallery">Foto</button>
@@ -109,7 +110,7 @@
     </div>
   </nav>
 
-  <div class="wrap panels-container">
+  <div class="panels-container">
 
     <!-- Tanggal penting + red day: daftar bergaris dan catatan pinggir -->
     <section class="feat-panel active layout-margin" id="panel-events" role="tabpanel" aria-labelledby="tab-events">
@@ -359,6 +360,7 @@
       </form>
       <ul class="todo-list-ul" id="dream-list"></ul>
     </section>
+  </div>
   </div>
 </main>
 

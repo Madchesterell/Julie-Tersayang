@@ -148,7 +148,7 @@ resizeCanvas();
 
 function launchConfetti(amount = 70) {
   if (reduced || !ctx) return;
-  const colors = ["#ff6b00", "#ff8c38", "#ffb380", "#ffffff", "#ffd6b8", "#c2410c"];
+  const colors = ["#2B3FFF", "#FFD600", "#FF4FA3", "#0A0A0A", "#FFFFFF"];
   for (let i = 0; i < amount; i++) {
     particles.push({
       x: window.innerWidth / 2 + (Math.random() - 0.5) * 260,
@@ -1318,7 +1318,7 @@ function setupEventListeners() {
   document.querySelectorAll(".modal").forEach((m) => {
     m.addEventListener("click", (e) => {
       if (e.target !== m) return;
-      if (m.id === "app-dialog") closeDialog(false); else m.classList.add("hidden");
+      if (m.id === "app-dialog") closeDialog(false); else closeModal(m.id);
     });
   });
   on("dialog-confirm", "click", () => closeDialog(true));
@@ -1326,7 +1326,7 @@ function setupEventListeners() {
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (!$("app-dialog")?.classList.contains("hidden")) { closeDialog(false); return; }
-    document.querySelectorAll(".modal:not(.hidden)").forEach((m) => m.classList.add("hidden"));
+    document.querySelectorAll(".modal:not(.hidden)").forEach((m) => closeModal(m.id));
     if (tp.open) closeTimePicker();
   });
 }
