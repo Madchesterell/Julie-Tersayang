@@ -26,32 +26,82 @@
   <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
   <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></symbol>
+  <symbol id="i-google" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></symbol>
 </svg>
 
 <canvas id="confetti-canvas" aria-hidden="true"></canvas>
 
-<!-- ═════════ AUTH GATE ═════════ -->
-<div id="authGate" class="auth-gate">
-  <div class="auth-card-mini">
-    <div class="brand"><span class="brand-dot"></span>Miloloo <span>&amp; Reroll</span></div>
-    <h2 id="authTitle">Masuk ke ruang privat</h2>
-    <p class="text-muted text-sm">Hanya dua akun terdaftar yang diizinkan mengakses ruang ini.</p>
+<!-- ═════════ AUTH GATE (split layout seperti Akasha) ═════════ -->
+<div id="authGate" class="auth-gate-modal">
+  <div class="auth-hero">
+    <div class="auth-glass">
+      <span class="hero-eyebrow">RUANG PRIVAT BERDUA</span>
+      <h2>Sepuluh fitur kecil yang menjaga kita tetap terhubung, di mana pun.</h2>
+      <p>Dari mood pagi, pengingat minum, sampai kupon sayang. Semuanya tersinkron real-time melalui Cloud Firestore.</p>
+      <ul class="hero-facts">
+        <li><strong>10</strong><span>Fitur Terhubung</span></li>
+        <li><strong>∞</strong><span>Kenangan</span></li>
+        <li><strong>24/7</strong><span>Real-time</span></li>
+      </ul>
+    </div>
+  </div>
 
-    <form id="loginForm" class="stacked-form" novalidate>
-      <div class="field"><label for="loginEmail">Email</label><input type="email" id="loginEmail" autocomplete="email" required /></div>
-      <div class="field"><label for="loginPassword">Kata sandi</label><input type="password" id="loginPassword" autocomplete="current-password" required /></div>
-      <button class="btn btn-primary btn-block" type="submit" id="loginSubmit">Masuk</button>
-    </form>
+  <div class="auth-panel">
+    <div class="auth-card">
+      <div class="auth-brand"><span class="brand-badge">Miloloo & Reroll</span></div>
+      <h1 class="auth-title" id="authTitle">Selamat <span>Datang</span></h1>
+      <p class="auth-subtitle" id="authSubtitle">Masuk untuk membuka ruang privat kalian berdua.</p>
 
-    <form id="registerForm" class="stacked-form hidden" novalidate>
-      <div class="field"><label for="regName">Nama panggilan</label><input type="text" id="regName" required /></div>
-      <div class="field"><label for="regEmail">Email (harus terdaftar)</label><input type="email" id="regEmail" autocomplete="email" required /></div>
-      <div class="field"><label for="regPassword">Kata sandi (min. 6 karakter)</label><input type="password" id="regPassword" minlength="6" autocomplete="new-password" required /></div>
-      <button class="btn btn-primary btn-block" type="submit" id="registerSubmit">Daftar</button>
-    </form>
+      <!-- LOGIN FORM -->
+      <form id="loginForm" class="auth-form" novalidate>
+        <div class="form-group">
+          <label for="loginEmail">Alamat email</label>
+          <input type="email" id="loginEmail" class="field" autocomplete="email" required />
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Kata sandi</label>
+          <input type="password" id="loginPassword" class="field" autocomplete="current-password" required />
+        </div>
+        <div class="auth-options">
+          <label class="remember-me">
+            <input type="checkbox" id="rememberMe" checked />
+            <span>Ingat saya</span>
+          </label>
+          <a href="#" class="forgot-password" id="forgotPasswordLink">Lupa sandi?</a>
+        </div>
+        <button type="submit" class="btn-primary" id="loginBtn">Masuk ke ruang kerja</button>
+        <div class="divider-container">atau</div>
+        <button type="button" class="btn-google" id="googleLoginBtn">
+          <svg class="ico" aria-hidden="true"><use href="#i-google"/></svg>
+          <span>Masuk dengan Google</span>
+        </button>
+      </form>
 
-    <p class="form-error hidden" id="authError" role="alert"></p>
-    <button class="btn btn-quiet btn-block mt-16" type="button" id="authToggle">Belum punya akun? Daftar</button>
+      <!-- REGISTER FORM -->
+      <form id="registerForm" class="auth-form hidden" novalidate>
+        <div class="form-group">
+          <label for="registerName">Nama panggilan</label>
+          <input type="text" id="registerName" class="field" required />
+        </div>
+        <div class="form-group">
+          <label for="registerEmail">Alamat email</label>
+          <input type="email" id="registerEmail" class="field" autocomplete="email" required />
+        </div>
+        <div class="form-group">
+          <label for="registerPassword">Kata sandi</label>
+          <input type="password" id="registerPassword" class="field" minlength="6" autocomplete="new-password" required />
+        </div>
+        <button type="submit" class="btn-primary" id="registerBtn">Buat akun</button>
+      </form>
+
+      <p class="form-error hidden" id="authError" role="alert"></p>
+
+      <div class="auth-footer">
+        <a href="#" id="authToggleLink">
+          <span id="authToggleText">Belum punya akun? Daftar sekarang</span>
+        </a>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -63,7 +113,13 @@
     <a class="brand" href="#hero"><span class="brand-dot"></span>Miloloo <span>&amp; Reroll</span></a>
     <div class="nav-actions">
       <span class="nav-score-pill" title="Skor energi hubungan">✨ <span id="global-score">100</span></span>
-      <span class="nav-score-pill" id="authUserChip" title="Akun aktif"></span>
+      <button class="topbar-profile-badge" type="button" id="accountBtn" title="Pengaturan akun">
+        <div class="avatar-circle" id="topbarUserAvatar">MR</div>
+        <div class="user-info-text">
+          <span class="user-name" id="topbarUserName">Pengguna</span>
+          <span class="user-role">Anggota</span>
+        </div>
+      </button>
       <button class="btn-icon" type="button" id="btn-logout" title="Keluar" aria-label="Keluar">⏻</button>
       <button class="btn-icon" type="button" id="theme-toggle" title="Ganti tema terang/gelap" aria-label="Ganti tema">
         <span class="icon-sun" aria-hidden="true">☀️</span>
@@ -118,7 +174,7 @@
 
   <div class="wrap panels-container">
 
-    <!-- ═══ 01 EVENTS & RED DAY ═══ -->
+    <!-- 01 EVENTS -->
     <section class="feat-panel active" id="panel-events">
       <div class="section-head">
         <span class="eyebrow">FITUR 01</span>
@@ -179,7 +235,7 @@
       </div>
     </section>
 
-    <!-- ═══ 02 MOOD ═══ -->
+    <!-- 02 MOOD -->
     <section class="feat-panel" id="panel-mood">
       <div class="section-head">
         <span class="eyebrow">FITUR 02</span>
@@ -216,7 +272,7 @@
       </div>
     </section>
 
-    <!-- ═══ 03 GALLERY ═══ -->
+    <!-- 03 GALLERY -->
     <section class="feat-panel" id="panel-gallery">
       <div class="section-head">
         <span class="eyebrow">FITUR 03</span>
@@ -238,7 +294,7 @@
       <div class="gallery-grid mt-24" id="gallery-grid"></div>
     </section>
 
-    <!-- ═══ 04 REMINDERS ═══ -->
+    <!-- 04 REMINDERS -->
     <section class="feat-panel" id="panel-reminders">
       <div class="section-head">
         <span class="eyebrow">FITUR 04</span>
@@ -293,7 +349,7 @@
       </div>
     </section>
 
-    <!-- ═══ 05 TODOS ═══ -->
+    <!-- 05 TODOS -->
     <section class="feat-panel" id="panel-todos">
       <div class="section-head">
         <span class="eyebrow">FITUR 05</span>
@@ -313,7 +369,7 @@
       <ul class="todo-list-ul mt-24" id="todo-list"></ul>
     </section>
 
-    <!-- ═══ 06 CAPSULES ═══ -->
+    <!-- 06 CAPSULES -->
     <section class="feat-panel" id="panel-capsules">
       <div class="section-head">
         <span class="eyebrow">FITUR 06</span>
@@ -338,7 +394,7 @@
       </div>
     </section>
 
-    <!-- ═══ 07 SONGS ═══ -->
+    <!-- 07 SONGS -->
     <section class="feat-panel" id="panel-songs">
       <div class="section-head">
         <span class="eyebrow">FITUR 07</span>
@@ -376,7 +432,7 @@
       </div>
     </section>
 
-    <!-- ═══ 08 PLACES ═══ -->
+    <!-- 08 PLACES -->
     <section class="feat-panel" id="panel-places">
       <div class="section-head">
         <span class="eyebrow">FITUR 08</span>
@@ -395,7 +451,7 @@
       <div class="places-grid mt-24" id="places-grid"></div>
     </section>
 
-    <!-- ═══ 09 COUPONS ═══ -->
+    <!-- 09 COUPONS -->
     <section class="feat-panel" id="panel-coupons">
       <div class="section-head">
         <span class="eyebrow">FITUR 09</span>
@@ -420,7 +476,7 @@
       </div>
     </section>
 
-    <!-- ═══ 10 DREAMS ═══ -->
+    <!-- 10 DREAMS -->
     <section class="feat-panel" id="panel-dreams">
       <div class="section-head">
         <span class="eyebrow">FITUR 10</span>
@@ -444,6 +500,8 @@
     <span class="footer-tag">100% Orange &amp; White Energy</span>
   </div>
 </footer>
+
+</div><!-- /appRoot -->
 
 <!-- ═══ MODALS ═══ -->
 <div class="modal hidden" id="song-modal">
@@ -497,7 +555,24 @@
   </div>
 </div>
 
-<!-- Dialog in-app (pengganti alert/confirm/prompt) -->
+<!-- Account Settings Modal -->
+<div class="modal hidden" id="accountModal">
+  <div class="modal-card">
+    <button class="modal-close" type="button" data-close="accountModal">×</button>
+    <h3 class="modal-title">Pengaturan akun</h3>
+    <p class="text-muted text-sm" style="margin-bottom:16px">Mengganti nama juga memperbarui nama Anda di setiap entri.</p>
+    <form class="stacked-form" id="accountForm">
+      <div class="field"><label>Nama tampilan</label><input type="text" id="accountName" required /></div>
+      <div class="field"><label>Kata sandi baru (kosongkan jika tidak ingin mengubah)</label><input type="password" id="accountPassword" minlength="6" /></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" type="button" data-close="accountModal">Batal</button>
+        <button class="btn btn-primary" type="submit">Simpan perubahan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Dialog in-app -->
 <div class="modal hidden" id="app-dialog">
   <div class="modal-card modal-sm">
     <h3 class="modal-title" id="dialog-title">Konfirmasi</h3>
