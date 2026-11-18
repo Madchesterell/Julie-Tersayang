@@ -1,1282 +1,2367 @@
-/* =========================================================
-   MILOLOO & REROLL, Ruang Privat Berdua
-   Firebase v10 Modular SDK · Auth + onSnapshot · setDoc
-========================================================= */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp
+  getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
+  onSnapshot, query, where, orderBy, getDocs, limit, serverTimestamp, arrayUnion, arrayRemove, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  signOut, onAuthStateChanged, updateProfile, updatePassword,
-  GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail,
-  setPersistence, browserLocalPersistence, browserSessionPersistence
+  signOut, onAuthStateChanged, updateProfile, updatePassword, GoogleAuthProvider, signInWithPopup,
+  sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-/* ───── KONFIGURASI FIREBASE ASLI (julie-8159d) ───── */
 const firebaseConfig = {
-  apiKey: "AIzaSyAgqA4VRjyhtlWZbF7YvoTDes2phgYom4g",
-  authDomain: "julie-8159d.firebaseapp.com",
-  projectId: "julie-8159d",
-  storageBucket: "julie-8159d.firebasestorage.app",
-  messagingSenderId: "448862045718",
-  appId: "1:448862045718:web:e2445770e02366655c1737",
-  measurementId: "G-WRNMHM63ZJ"
+  apiKey: "AIzaSyCEZ_9ni_0u9WY5fQCSsHt8RZFlijetLgs",
+  authDomain: "workspace-1146e.firebaseapp.com",
+  projectId: "workspace-1146e",
+  storageBucket: "workspace-1146e.firebasestorage.app",
+  messagingSenderId: "617778820449",
+  appId: "1:617778820449:web:8f239651dda6dfd0f8c120",
+  measurementId: "G-YZGE0SBE5V"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-const ROOM_REF = doc(db, "couple_rooms", "miloloo_reroll");
-const $ = (id) => document.getElementById(id);
-const THEME_KEY = "jb.theme.v2";
-const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-const NAMES = {
-  julie:  { full: "Julie Cahya Karmila",  nick: "Miloloo" },
-  abyant: { full: "Jalu Farrel Abyantara", nick: "Reroll" }
+let state = {
+  user: null, workspaceId: null, workspaceName: null, role: null, workerName: null,
+  driveLink: '', members: [], tasks: [], divisions: []
 };
+let unsubscribers = [];
+let dashboardWorkspaces = [];
+let dashboardStatus = 'loading'; // loading | ready | error
+let dashboardNotifications = [];
+let heartbeatInterval = null;
+let activities = [], announcements = [];
+let notifications = [], notifUnsub = null;
+let currentDetailId = null;
+const autoStarted = new Set();
+const $ = (id) => document.getElementById(id);
 
-const MOODS = [
-  { key: "happy",    emoji: "😊", label: "Happy",         msg: "Senyum terus hari ini! Semangat ya." },
-  { key: "capek",    emoji: "😮‍💨", label: "Capek",         msg: "Istirahat dulu, jangan dipaksa. Peluk jauh." },
-  { key: "kangen",   emoji: "🥺", label: "Kangen",        msg: "Sama. Ayo telepon sebentar nanti ya." },
-  { key: "sensitif", emoji: "🫧", label: "Sensitif",      msg: "Pelan-pelan ya. Aku dengerin, nggak akan nyela." },
-  { key: "semangat", emoji: "🔥", label: "Semangat",      msg: "Gas! Aku dukung penuh apapun yang kamu kerjakan." },
-  { key: "pelukan",  emoji: "🫂", label: "Butuh Pelukan", msg: "Anggap ini pelukan paling hangat dan lama." }
-];
-
-const AUDIO_EXT = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|webm)(\?|#|$)/i;
-
-/* ───── HELPERS ───── */
-const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3);
-const pad = (n) => String(n).padStart(2, "0");
-const iso = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
-  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-}[c]));
-const ICON_TEXT = { edit: "✏️", trash: "🗑️", save: "💾", x: "✕", undo: "↩️", play: "▶" };
-const icon = (name) => ICON_TEXT[name] ?? "";
-
-function httpUrl(u) {
+// Utilitas
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function safeUrl(u) {
   try {
-    const url = new URL(String(u || "").trim());
-    return (url.protocol === "https:" || url.protocol === "http:") ? url.href : "";
-  } catch { return ""; }
+    const url = new URL(String(u || '').trim());
+    return (url.protocol === 'https:' || url.protocol === 'http:') ? url.href : '';
+  } catch { return ''; }
 }
-const fmtDay  = (isoDate) => { const d = new Date(isoDate + "T00:00:00"); return isNaN(d) ? isoDate : d.toLocaleDateString("id-ID", { day: "numeric", month: "short" }); };
-const fmtFull = (isoDate) => { const d = new Date(isoDate + "T00:00:00"); return isNaN(d) ? isoDate : d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }); };
-const fmtStamp = (ms) => ms ? new Date(ms).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
-const dayDiff = (a, b) => Math.round((new Date(a + "T00:00:00") - new Date(b + "T00:00:00")) / 864e5);
-
-function toast(msg, type = "info") {
-  const c = $("toast-container"); if (!c) return;
-  const el = document.createElement("div");
-  el.className = "toast " + type;
-  el.textContent = msg;
+function localDate(d = new Date()) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+const daysLeft = t => !t.endDate ? null : Math.round((new Date(t.endDate + 'T00:00:00') - new Date(localDate() + 'T00:00:00')) / 864e5);
+function dueLevel(t) {
+  if (t.status === 'done') return null;
+  const d = daysLeft(t);
+  return d === null ? null : d < 0 ? 'overdue' : d <= 1 ? 'urgent' : d <= 3 ? 'soon' : null;
+}
+function dueLabel(t) {
+  const d = daysLeft(t);
+  return d < 0 ? `Terlambat ${-d} hari` : d === 0 ? 'Hari ini' : d === 1 ? 'Besok' : `H-${d}`;
+}
+const needsAction = (t, role, name) => role === 'mentor'
+  ? t.status === 'review'
+  : t.assignee === name && (t.status === 'todo' || (t.status === 'progress' && t.revisionNotes));
+function statusInfo(t) {
+  if (t.status === 'done') return ['Selesai', 's-done'];
+  if (t.status === 'review') return ['Siap Dicek', 's-check'];
+  if (t.status === 'progress') return t.revisionNotes ? ['Revisi', 's-review'] : ['Berjalan', 's-progress'];
+  return ['Belum Dimulai', 's-todo'];
+}
+function toast(msg, type = 'info') {
+  const c = $('toastContainer'); if (!c) return;
+  const el = document.createElement('div');
+  el.className = `toast ${type}`; el.textContent = msg;
   c.appendChild(el);
-  setTimeout(() => {
-    el.style.opacity = "0";
-    el.style.transition = "opacity .3s";
-    setTimeout(() => el.remove(), 300);
-  }, 3200);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, 3000);
 }
+const fmtTime = ts => {
+  const d = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
+  return d ? d.toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'baru saja';
+};
+function timeAgo(ts) {
+  if (!ts) return '-';
+  const t = ts?.toDate ? ts.toDate() : new Date(ts);
+  const s = (Date.now() - t.getTime()) / 1000;
+  if (s < 60) return 'baru saja';
+  if (s < 3600) return `${Math.floor(s / 60)} menit lalu`;
+  if (s < 86400) return `${Math.floor(s / 3600)} jam lalu`;
+  return `${Math.floor(s / 86400)} hari lalu`;
+}
+function isOnline(lastActive) {
+  if (!lastActive) return false;
+  const t = lastActive?.toDate ? lastActive.toDate() : new Date(lastActive);
+  return (Date.now() - t.getTime()) < 120000;
+}
+const newId = () => Math.random().toString(36).slice(2, 9);
 
-/* ───── DIALOG ───── */
-let dialogResolve = null;
+// Dialog dalam aplikasi, pengganti alert, confirm, dan prompt
+let dialogResolve = null, dialogValidator = null;
 function openDialog(o) {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     dialogResolve = resolve;
-    $("dialog-title").textContent   = o.title || "Konfirmasi";
-    $("dialog-message").textContent = o.message || "";
-    $("dialog-cancel").classList.toggle("hidden", !!o.alertOnly);
-    const ok = $("dialog-confirm");
-    ok.textContent = o.confirmText || "Ya, lanjut";
-    ok.className = "btn " + (o.danger ? "btn-danger" : "btn-primary-solid");
-    lastTrigger = document.activeElement;
-    $("app-dialog").classList.remove("hidden");
-    syncInert();
-    ok.focus();
+    dialogValidator = o.validate || null;
+    $('appDialogTitle').textContent = o.title || 'Konfirmasi';
+    $('appDialogMessage').textContent = o.message || '';
+    $('appDialogMessage').classList.toggle('hidden', !o.message);
+    $('appDialogFieldWrap').classList.toggle('hidden', !o.input);
+    $('appDialogLabel').textContent = o.label || 'Nilai';
+    const inp = $('appDialogInput');
+    inp.value = o.value || ''; inp.placeholder = o.placeholder || '';
+    inp.classList.toggle('code-field', !!o.code);
+    inp.maxLength = o.code ? 6 : 500;
+    $('appDialogError').classList.add('hidden');
+    $('appDialogCancel').classList.toggle('hidden', !!o.alertOnly);
+    const ok = $('appDialogConfirm');
+    ok.textContent = o.confirmText || (o.input ? 'Simpan' : 'Ya, lanjut');
+    ok.className = 'btn-sm ' + (o.danger ? 'btn-danger' : 'btn-solid');
+    $('appDialog').dataset.mode = o.input ? 'input' : (o.alertOnly ? 'alert' : 'confirm');
+    $('appDialog').classList.remove('hidden');
+    setTimeout(() => (o.input ? inp : ok).focus(), 40);
   });
 }
 function closeDialog(val) {
-  $("app-dialog").classList.add("hidden");
-  syncInert();
-  const r = dialogResolve; dialogResolve = null;
+  $('appDialog').classList.add('hidden');
+  const r = dialogResolve; dialogResolve = null; dialogValidator = null;
   if (r) r(val);
 }
-const showAlert  = (message, title = "Perhatian") => openDialog({ title, message, alertOnly: true, confirmText: "Mengerti" });
-const askConfirm = (message, o = {}) => openDialog({ title: o.title || "Konfirmasi", message, confirmText: o.confirmText || "Ya, lanjut", danger: o.danger });
-let lastTrigger = null;
-function syncInert() {
-  const anyOpen = document.querySelector(".modal:not(.hidden)") !== null;
-  ["appRoot", "authGate"].forEach((id) => { const el = $(id); if (el) el.inert = anyOpen; });
-  if (!anyOpen && lastTrigger?.isConnected) { lastTrigger.focus(); lastTrigger = null; }
+function submitDialog() {
+  const mode = $('appDialog').dataset.mode;
+  if (mode === 'input') {
+    const v = $('appDialogInput').value;
+    if (dialogValidator) {
+      const err = dialogValidator(v);
+      if (err) { const e = $('appDialogError'); e.textContent = err; e.classList.remove('hidden'); return; }
+    }
+    closeDialog(v);
+  } else closeDialog(true);
 }
-function openModal(id) {
-  const m = $(id); if (!m) return;
-  lastTrigger = document.activeElement;
-  m.classList.remove("hidden");
-  syncInert();
-  m.querySelector("input:not([type=hidden]), textarea, button")?.focus();
+const showAlert = (message, title = 'Perhatian') => openDialog({ title, message, alertOnly: true, confirmText: 'Mengerti' });
+const askConfirm = (message, o = {}) => openDialog({ title: o.title || 'Konfirmasi', message, confirmText: o.confirmText || 'Ya, lanjut', danger: o.danger });
+const askText = o => openDialog({ ...o, input: true });
+
+// Pilihan kustom (select)
+function closeAllSelects(except) {
+  document.querySelectorAll('.select-panel').forEach(p => {
+    if (p === except) return;
+    p.classList.add('hidden');
+    p.previousElementSibling?.setAttribute('aria-expanded', 'false');
+  });
 }
-function closeModal(id) { $(id)?.classList.add("hidden"); syncInert(); }
+function enhanceSelect(sel) {
+  if (sel.dataset.enhanced) return;
+  sel.dataset.enhanced = '1';
+  sel.removeAttribute('required');
+  const shell = document.createElement('div'); shell.className = 'select-shell';
+  sel.parentNode.insertBefore(shell, sel);
+  shell.appendChild(sel);
+  sel.classList.add('select-native');
+  sel.setAttribute('tabindex', '-1');
+  sel.setAttribute('aria-hidden', 'true');
 
-/* ───── SOUND & CONFETTI ───── */
-let audioCtx = null;
-function pop(freq = 520) {
-  try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(freq * 1.65, audioCtx.currentTime + 0.09);
-    gain.gain.setValueAtTime(0.16, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-    osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.start(); osc.stop(audioCtx.currentTime + 0.1);
-  } catch (e) {}
-}
+  const trigger = document.createElement('button');
+  trigger.type = 'button'; trigger.className = 'select-trigger';
+  trigger.setAttribute('aria-haspopup', 'listbox'); trigger.setAttribute('aria-expanded', 'false');
+  const val = document.createElement('span'); val.className = 'select-value';
+  const caret = document.createElement('span'); caret.className = 'select-caret'; caret.innerHTML = '<svg class="ic"><use href="#i-caret"/></svg>'; caret.setAttribute('aria-hidden', 'true');
+  trigger.append(val, caret);
 
-const canvas = $("confetti-canvas");
-const ctx = canvas ? canvas.getContext("2d") : null;
-let particles = [], rafId = null;
-function resizeCanvas() { if (!canvas) return; canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
+  const panel = document.createElement('div');
+  panel.className = 'select-panel hidden'; panel.setAttribute('role', 'listbox');
+  shell.append(trigger, panel);
 
-function launchConfetti(amount = 70) {
-  if (reduced || !ctx) return;
-  const colors = ["#F43F5E", "#FACC15", "#38BDF8", "#8B5CF6", "#FFFFFF"];
-  for (let i = 0; i < amount; i++) {
-    particles.push({
-      x: window.innerWidth / 2 + (Math.random() - 0.5) * 260,
-      y: window.innerHeight * 0.45,
-      vx: (Math.random() - 0.5) * 14,
-      vy: (Math.random() - 1) * 14 - 4,
-      size: Math.random() * 8 + 4,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      rotation: Math.random() * 360,
-      vRot: (Math.random() - 0.5) * 12,
-      life: 100
+  const labelFor = () => {
+    const o = sel.options[sel.selectedIndex];
+    val.textContent = o ? o.textContent.trim() : 'Pilih…';
+    val.classList.toggle('placeholder', !o || !sel.value);
+  };
+  const build = () => {
+    panel.innerHTML = '';
+    const add = (opt) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'select-option'; b.setAttribute('role', 'option');
+      b.dataset.value = opt.value; b.disabled = opt.disabled;
+      b.setAttribute('aria-selected', String(opt.value === sel.value));
+      const t = document.createElement('span'); t.textContent = opt.textContent.trim();
+      b.appendChild(t);
+      if (opt.value === sel.value) { const c = document.createElement('span'); c.className = 'select-check'; c.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>'; b.appendChild(c); }
+      b.addEventListener('click', () => {
+        sel.value = opt.value;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        closeAllSelects(); trigger.focus(); sync();
+      });
+      panel.appendChild(b);
+    };
+    Array.from(sel.children).forEach(n => {
+      if (n.tagName === 'OPTGROUP') {
+        const g = document.createElement('div'); g.className = 'select-group'; g.textContent = n.label;
+        panel.appendChild(g);
+        Array.from(n.children).forEach(add);
+      } else if (n.tagName === 'OPTION') add(n);
     });
-  }
-  if (!rafId) rafId = requestAnimationFrame(tickConfetti);
-}
-function tickConfetti() {
-  if (!ctx) return;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  particles = particles.filter((p) => p.life > 0);
-  particles.forEach((p) => {
-    p.x += p.vx; p.y += p.vy; p.vy += 0.35; p.rotation += p.vRot; p.life -= 1.2;
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.rotate((p.rotation * Math.PI) / 180);
-    ctx.fillStyle = p.color;
-    ctx.globalAlpha = Math.max(0, p.life / 100);
-    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
-    ctx.restore();
+    labelFor();
+  };
+  const sync = () => { build(); };
+
+  trigger.addEventListener('click', () => {
+    const open = panel.classList.contains('hidden');
+    closeAllSelects();
+    panel.classList.toggle('hidden', !open);
+    trigger.setAttribute('aria-expanded', String(open));
+    if (open) (panel.querySelector('[aria-selected="true"]:not(:disabled)') || panel.querySelector('.select-option:not(:disabled)'))?.focus();
   });
-  if (particles.length) rafId = requestAnimationFrame(tickConfetti);
-  else { ctx.clearRect(0, 0, canvas.width, canvas.height); rafId = null; }
-}
-
-/* ───── THEME ───── */
-let currentTheme = "light";
-function applyTheme(t) {
-  currentTheme = t;
-  document.documentElement.setAttribute("data-theme", t);
-  try { localStorage.setItem(THEME_KEY, t); } catch {}
-  const btn = $("theme-toggle");
-  if (btn) { btn.textContent = t === "dark" ? "Mode Siang" : "Mode Malam"; btn.setAttribute("aria-pressed", String(t === "dark")); }
-}
-try { currentTheme = localStorage.getItem(THEME_KEY) || "light"; } catch {}
-applyTheme(currentTheme);
-
-/* ───── TABS ───── */
-const featTabs   = () => Array.from(document.querySelectorAll(".feat-tab"));
-const featPanels = () => Array.from(document.querySelectorAll(".feat-panel"));
-function activateTab(tab, { focus = false, updateHash = true } = {}) {
-  featTabs().forEach((t) => {
-    const on = t === tab;
-    t.classList.toggle("active", on);
-    t.setAttribute("aria-selected", String(on));
-    t.tabIndex = on ? 0 : -1;
+  trigger.addEventListener('keydown', e => {
+    if (['ArrowDown', 'Enter', ' '].includes(e.key)) { e.preventDefault(); trigger.click(); }
   });
-  featPanels().forEach((p) => p.classList.toggle("active", p.id === tab.dataset.target));
-  if (focus) tab.focus();
-  tab.scrollIntoView({ block: "nearest", inline: "center" });
-  if (updateHash) history.replaceState(null, "", "#" + tab.dataset.target.replace("panel-", ""));
+  panel.addEventListener('keydown', e => {
+    const items = Array.from(panel.querySelectorAll('.select-option:not(:disabled)'));
+    const i = items.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); items[Math.min(i + 1, items.length - 1)]?.focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); items[Math.max(i - 1, 0)]?.focus(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeAllSelects(); trigger.focus(); }
+    else if (e.key === 'Tab') closeAllSelects();
+  });
+  sel.addEventListener('change', sync);
+  new MutationObserver(sync).observe(sel, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled', 'selected'] });
+  sync();
 }
-function tabFromHash() {
-  const key = location.hash.slice(1);
-  return featTabs().find((t) => t.dataset.target === "panel-" + key);
-}
-function onTabKey(e) {
-  const tabs = featTabs(), i = tabs.indexOf(e.currentTarget);
-  const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
-  if (next === undefined) return;
-  e.preventDefault();
-  activateTab(tabs[(next + tabs.length) % tabs.length], { focus: true });
-}
+function enhanceAllSelects() { document.querySelectorAll('select[data-enhance]').forEach(enhanceSelect); }
 
-/* ───── STATUS SINKRON ───── */
-let syncState = "loading";
-const SYNC_TEXT = {
-  loading: "Memuat catatan dari Firestore…",
-  error: "Tidak tersambung ke Firestore. Perubahan baru belum tersimpan."
+function startHeartbeat() {
+  stopHeartbeat();
+  const beat = async () => {
+    if (!state.user || !state.workspaceId) return;
+    try { await updateDoc(doc(db, 'workspaces', state.workspaceId, 'members', state.user.uid), { lastActive: serverTimestamp() }); }
+    catch (e) { console.warn('Heartbeat gagal:', e); }
+  };
+  beat();
+  heartbeatInterval = setInterval(beat, 60000);
+}
+function stopHeartbeat() { if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; } }
+
+// Pergantian tampilan
+function showAuthView() {
+  $('authView').classList.remove('hidden');
+  $('dashboardView').classList.add('hidden');
+  $('workspaceView').classList.add('hidden');
+}
+function showDashboardView() {
+  $('authView').classList.add('hidden');
+  $('dashboardView').classList.remove('hidden');
+  $('workspaceView').classList.add('hidden');
+  dashboardStatus = 'loading';
+  const name = state.user?.displayName || state.user?.email || 'Pengguna';
+  const initials = name.split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map(x => x[0].toUpperCase()).join('');
+  if ($('topbarUserName')) $('topbarUserName').textContent = name;
+  if ($('topbarUserRole')) $('topbarUserRole').textContent = 'Member';
+  if ($('topbarUserAvatar')) $('topbarUserAvatar').textContent = initials || 'A';
+  renderGreeting();
+  loadUserWorkspaces();
+  switchDashboardSection('home');
+}
+function switchDashboardSection(section) {
+  const panels = { home: 'dashboardHomePanel', workspaces: 'myWorkspacesPanel', notifications: 'notificationsPanel' };
+  Object.entries(panels).forEach(([k, id]) => $(id)?.classList.toggle('hidden', k !== section));
+  $('dashboardNavBtn')?.classList.toggle('active', section === 'home');
+  $('myWorkspacesNavBtn')?.classList.toggle('active', section === 'workspaces');
+  $('notificationsNavBtn')?.classList.toggle('active', section === 'notifications');
+  $('dashboardPageTitle').textContent = ({ home: 'Dashboard', workspaces: 'Ruang Kerja Saya', notifications: 'Notifikasi' })[section] || 'Dashboard';
+  if (section === 'notifications') renderFullNotifications();
+}
+function showWorkspaceView() {
+  $('authView').classList.add('hidden');
+  $('dashboardView').classList.add('hidden');
+  $('workspaceView').classList.remove('hidden');
+  $('workspaceTitle').textContent = state.workspaceName || 'Ruang Kerja';
+  const isLead = state.role === 'mentor';
+  $('tabDivisionView')?.classList.toggle('hidden', !isLead);
+  $('tabTaskLabel').textContent = isLead ? 'Papan Tugas' : 'Tugas Saya';
+  $('mentorPanel').classList.toggle('hidden', !isLead);
+  $('mentorTaskCreator').classList.toggle('hidden', !isLead);
+  $('announceCreator').classList.toggle('hidden', !isLead);
+  $('dailyGoalSection')?.classList.toggle('hidden', isLead);
+  $('roleControls').innerHTML = `<span>${isLead ? 'Lead' : 'Member'} · <strong>${escapeHtml(state.workerName)}</strong></span>`;
+  startHeartbeat();
+  switchWorkspaceTab('task');
+}
+const WS_TABS = {
+  task: ['mainTaskContainer', 'tabTaskView'],
+  calendar: ['calendarPanel', 'tabCalendarView'],
+  activity: ['activityPanel', 'tabActivityView'],
+  announce: ['announcementPanel', 'tabAnnouncementView'],
+  division: ['divisionManagementPanel', 'tabDivisionView'],
+  team: ['teamPanel', 'tabTeamView']
 };
-function setSync(state) {
-  syncState = state;
-  const el = $("sync-status");
-  if (el) {
-    el.textContent = state === "ready" ? "" : SYNC_TEXT[state];
-    el.classList.toggle("is-error", state === "error");
-  }
+function switchWorkspaceTab(tab) {
+  Object.entries(WS_TABS).forEach(([k, [p, b]]) => {
+    $(p)?.classList.toggle('hidden', k !== tab);
+    $(b)?.classList.toggle('active', k === tab);
+  });
+  if (tab === 'division') renderDivisionManagement();
+  if (tab === 'calendar') renderCalendar();
+  if (tab === 'team') renderTeamPanel();
 }
 
-/* DEFAULT STATE */
-function defaults() {
-  return {
-    version: 2,
-    meta: { score: 100, hugs: 0 },
-    events: [],
-    redDay: { lastStart: iso(), cycleLength: 28, statusMode: "auto", manualStatus: "Perhatian & Sayang Ekstra" },
-    moods: {
-      julie:  { mood: "happy",    note: "", updatedAt: null, history: [] },
-      abyant: { mood: "semangat", note: "", updatedAt: null, history: [] }
-    },
-    gallery: [],
-    reminders: [],
-    todos: [],
-    capsules: [],
-    songs: [],
-    places: [],
-    coupons: { available: [], claimed: [] },
-    dreams: []
-  };
+// Autentikasi
+function toggleAuthMode() {
+  const isLogin = !$('loginForm').classList.contains('hidden');
+  $('loginForm').classList.toggle('hidden', isLogin);
+  $('registerForm').classList.toggle('hidden', !isLogin);
+  $('authTitle').innerHTML = isLogin ? 'Buat <span>Akun</span>' : 'Selamat <span>Datang</span>';
+  $('authSubtitle').textContent = isLogin ? 'Daftar untuk membuat atau bergabung ke ruang kerja.' : 'Masuk untuk membuka ruang kerja Anda.';
 }
-
-function mergeState(parsed) {
-  const base = defaults();
-  if (!parsed || typeof parsed !== "object") return base;
-  const merged = { ...base, ...parsed };
-  merged.meta   = { ...base.meta, ...(parsed.meta || {}) };
-  merged.redDay = { ...base.redDay, ...(parsed.redDay || {}) };
-  merged.moods = {
-    julie:  { ...base.moods.julie,  ...(parsed.moods?.julie  || {}) },
-    abyant: { ...base.moods.abyant, ...(parsed.moods?.abyant || {}) }
-  };
-  merged.coupons = {
-    available: Array.isArray(parsed.coupons?.available) ? parsed.coupons.available : [],
-    claimed:   Array.isArray(parsed.coupons?.claimed)   ? parsed.coupons.claimed   : []
-  };
-  if (!Array.isArray(merged.events))    merged.events    = [];
-  if (!Array.isArray(merged.gallery))   merged.gallery   = [];
-  if (!Array.isArray(merged.reminders)) merged.reminders = [];
-  if (!Array.isArray(merged.todos))     merged.todos     = [];
-  if (!Array.isArray(merged.capsules))  merged.capsules  = [];
-  if (!Array.isArray(merged.songs))     merged.songs     = [];
-  if (!Array.isArray(merged.places))    merged.places    = [];
-  if (!Array.isArray(merged.dreams))    merged.dreams    = [];
-  return merged;
-}
-
-let S = defaults();
-let lastSyncedFingerprint = "";
-let reminderFiredToday = new Set();
-let moodPerson = "julie";
-let editingEventId = null;
-let editingPlaceId = null;
-let currentSongId = null;
-let unsubRoom = null;
-
-/* ───── QUOTA & SAVE ───── */
-function docBytes() {
-  try { return new Blob([JSON.stringify(S)]).size; } catch { return 0; }
-}
-function updateQuota() {
-  const el = $("gallery-quota");
-  if (!el) return;
-  const kb = docBytes() / 1024;
-  const warn = kb > 750;
-  el.className = "text-sm " + (warn ? "quota-warn" : "text-muted");
-  el.textContent = `Penyimpanan terpakai: ${kb.toFixed(1)} KB${warn ? ", mendekati batas 1 MB" : ""}`;
-}
-async function save() {
-  updateQuota();
-  lastSyncedFingerprint = JSON.stringify(S);
+async function handleLogin(e) {
+  e.preventDefault();
+  const email = $('loginEmail').value.trim();
+  const password = $('loginPassword').value;
+  const btn = $('loginBtn');
+  btn.disabled = true; btn.textContent = 'Masuk…';
   try {
-    await setDoc(ROOM_REF, { ...S, updatedAt: serverTimestamp() }, { merge: true });
-    return true;
-  } catch (e) {
-    console.error("Gagal menyimpan ke Firestore:", e);
-    toast("Gagal menyinkronkan ke Firestore.", "warn");
-    return false;
-  }
+    await setPersistence(auth, $('rememberMe').checked ? browserLocalPersistence : browserSessionPersistence);
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) { await showAlert('Gagal masuk: ' + (err.code || err.message), 'Tidak bisa masuk'); }
+  finally { btn.disabled = false; btn.textContent = 'Masuk ke ruang kerja'; }
 }
-function addScore(n) { S.meta.score += n; save(); renderScore(); }
-function renderScore() {
-  const gs = $("global-score"), ec = $("energy-count");
-  if (gs) gs.textContent = S.meta.score;
-  if (ec) ec.textContent = S.meta.hugs;
+async function handleRegister(e) {
+  e.preventDefault();
+  const name = $('registerName').value.trim();
+  const email = $('registerEmail').value.trim();
+  const password = $('registerPassword').value;
+  const btn = $('registerBtn');
+  btn.disabled = true; btn.textContent = 'Mendaftar…';
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(cred.user, { displayName: name });
+    await setDoc(doc(db, 'users', cred.user.uid), { email, displayName: name, workspaceIds: [], createdAt: serverTimestamp() });
+  } catch (err) { await showAlert('Gagal daftar: ' + (err.code || err.message), 'Tidak bisa mendaftar'); }
+  finally { btn.disabled = false; btn.textContent = 'Buat akun'; }
+}
+async function handleLogout() {
+  if (!await askConfirm('Keluar dari akun ini?', { title: 'Keluar', confirmText: 'Keluar', danger: true })) return;
+  stopHeartbeat();
+  unsubscribers.forEach(u => u()); unsubscribers = [];
+  await signOut(auth);
 }
 
-/* ───── RENDER FITUR ───── */
-function nextOccurrence(isoDate) {
-  const today = new Date(iso() + "T00:00:00");
-  const d = new Date(isoDate + "T00:00:00");
-  if (isNaN(d)) return null;
-  let next = new Date(today.getFullYear(), d.getMonth(), d.getDate());
-  if (next < today) next = new Date(today.getFullYear() + 1, d.getMonth(), d.getDate());
-  return Math.round((next - today) / 864e5);
+// Data dashboard
+function summarizeTasks(tasks, role, myName) {
+  const mine = role === 'worker' ? tasks.filter(t => t.assignee === myName) : tasks;
+  const c = { todo: 0, progress: 0, review: 0, done: 0, overdue: 0 };
+  mine.forEach(t => {
+    c[t.status] = (c[t.status] || 0) + 1;
+    const d = daysLeft(t);
+    if (t.status !== 'done' && d !== null && d < 0) c.overdue++;
+  });
+  return { c, total: mine.length, action: tasks.filter(t => needsAction(t, role, myName)).length };
 }
-function renderEvents() {
-  const ul = $("anniversary-list"); if (!ul) return;
-  const cnt = $("events-count"); if (cnt) cnt.textContent = `${S.events.length} acara`;
-  if (!S.events.length) {
-    ul.innerHTML = `<li class="empty-hint">Belum ada hari spesial. Tambahkan di bawah.</li>`;
+async function loadUserWorkspaces() {
+  const list = $('workspaceList');
+  if (list) list.innerHTML = '<p class="empty-hint">Memuat daftar ruang kerja…</p>';
+  try {
+    const userSnap = await getDoc(doc(db, 'users', state.user.uid));
+    const ids = userSnap.exists() ? (userSnap.data().workspaceIds || []) : [];
+    if (!ids.length) {
+      dashboardWorkspaces = [];
+      dashboardStatus = 'ready';
+      renderWorkspaceList([]); renderDashboardNotifications(); renderMiniCalendar(); renderDashboardSummary();
+      return;
+    }
+    const workspaces = await Promise.all(ids.map(async id => {
+      const wsSnap = await getDoc(doc(db, 'workspaces', id));
+      if (!wsSnap.exists()) return null;
+      const memberSnap = await getDoc(doc(db, 'workspaces', id, 'members', state.user.uid));
+      if (!memberSnap.exists()) return null;
+      const member = memberSnap.data();
+      let tasks = [];
+      try { tasks = (await getDocs(collection(db, 'workspaces', id, 'tasks'))).docs.map(d => ({ id: d.id, ...d.data() })); }
+      catch (e) { console.warn('Ringkasan gagal:', e); }
+      const role = member.role || 'worker';
+      return { id, ...wsSnap.data(), role, workerName: member.name, tasks, stats: summarizeTasks(tasks, role, member.name) };
+    }));
+    dashboardWorkspaces = workspaces.filter(Boolean);
+    dashboardStatus = 'ready';
+    renderWorkspaceList(dashboardWorkspaces); renderDashboardNotifications(); renderMiniCalendar(); renderDashboardSummary();
+  } catch (err) {
+    console.error(err);
+    dashboardStatus = 'error';
+    renderGreeting();
+    if (list) list.innerHTML = `<p class="empty-hint">Gagal memuat: ${escapeHtml(err.message)}</p>`;
+  }
+}
+function renderWorkspaceList(workspaces) {
+  const card = ws => {
+    const code = ws.joinCode || '';
+    const s = ws.stats || { c: {}, total: 0, action: 0 };
+    const total = s.total || 0;
+    const done = s.c?.done || 0;
+    const progress = total ? Math.round((done / total) * 100) : 0;
+    const waiting = s.action || 0;
+    const roleLabel = ws.role === 'mentor' ? 'Mentor' : 'Member';
+    const roleClass = ws.role === 'mentor' ? 'badge-role-mentor' : 'badge-role-member';
+    return `<article class="ws-card-item">
+      <div class="ws-card-top">
+        <div>
+          <div class="ws-card-name">${escapeHtml(ws.name)}</div>
+          <div class="ws-card-meta">${escapeHtml(ws.role === 'mentor' ? 'Kamu pengelolanya' : 'Anggota')}</div>
+        </div>
+        <span class="${roleClass}">${roleLabel}</span>
+      </div>
+      <div>
+        <div class="ws-progress-bar"><div class="ws-progress-fill" style="width:${progress}%"></div></div>
+        <div class="ws-progress-text">${progress}% selesai · ${waiting} tugas menunggu kamu</div>
+      </div>
+      <div class="ws-card-foot">
+        <span class="ws-code-label">KODE ${escapeHtml(code || '-')}</span>
+        <button type="button" class="btn-sm btn-ghost ws-card-open" aria-label="Buka ruang ${escapeHtml(ws.name)}" onclick="openWorkspace('${ws.id}')">Buka ruang</button>
+      </div>
+    </article>`;
+  };
+  const empty = '<p class="empty-hint">Belum ada ruang kerja. Buat atau gabung dengan kode undangan.</p>';
+  const joinCard = `<div class="ws-card-item ws-join-card-item">
+    <h3 class="ws-card-name">Punya kode undangan?</h3>
+    <p class="ws-card-meta">Masukkan 6 karakter dari mentormu.</p>
+    <div class="ws-join-form">
+      <input type="text" id="inlineJoinCode" aria-label="Kode undangan" maxlength="6" class="field code-field" placeholder="ABC123" />
+      <button type="button" class="btn-sm btn-solid" id="inlineJoinBtn">Gabung</button>
+    </div>
+  </div>`;
+  if ($('workspaceList')) {
+    $('workspaceList').innerHTML = workspaces.length ? workspaces.map(card).join('') + joinCard : empty + joinCard;
+    const btn = $('inlineJoinBtn');
+    if (btn) btn.onclick = () => {
+      const code = ($('inlineJoinCode')?.value || '').trim().toUpperCase();
+      if (code.length === 6) { $('joinCodeInput').value = code; $('joinWorkspaceModal').classList.remove('hidden'); }
+      else toast('Kode harus 6 karakter', 'info');
+    };
+  }
+  if ($('dashboardWorkspacePreview')) {
+    $('dashboardWorkspacePreview').innerHTML = workspaces.length
+      ? workspaces.slice(0, 3).map(ws => {
+          const s = ws.stats || { c: {}, total: 0 };
+          const total = s.total || 0;
+          const done = s.c?.done || 0;
+          const progress = total ? Math.round((done / total) * 100) : 0;
+          return `<button type="button" class="ws-card-item ws-preview" onclick="openWorkspace('${ws.id}')">
+            <span class="ws-card-name">${escapeHtml(ws.name)}</span>
+            <span class="ws-progress-bar"><span class="ws-progress-fill" style="width:${progress}%"></span></span>
+            <span class="ws-progress-text">${progress}% · ${s.action || 0} menunggu</span>
+          </button>`;
+        }).join('')
+      : '<p class="empty-hint">Belum ada ruang kerja.</p>';
+  }
+}
+window.copyJoinCode = async (code) => {
+  try {
+    await navigator.clipboard.writeText(code);
+    toast(`Kode ${code} disalin`, 'success');
+  } catch {
+    await showAlert(`Kode undangan: ${code}`, 'Salin manual');
+  }
+};
+function notifMarkup(item) {
+  return `<button type="button" class="dashboard-notification-item" onclick="openWorkspace('${item.workspaceId}')">
+    <span class="notification-status-dot ${item.kind === 'done' ? 'is-done' : 'is-action'}" aria-hidden="true"></span>
+    <span class="dashboard-notification-copy">
+      <strong>${escapeHtml(item.title || 'Tugas tanpa judul')}</strong>
+      <span class="notif-sub">${escapeHtml(item.workspaceName)} · ${item.kind === 'done' ? 'Tugas selesai' : (item.role === 'mentor' ? 'Menunggu penilaian' : 'Perlu tindakan')}</span>
+    </span>
+    <span class="notification-kind ${item.kind}">${item.kind === 'done' ? 'Selesai' : 'Perlu tindakan'}</span>
+  </button>`;
+}
+function renderDashboardNotifications() {
+  dashboardNotifications = [];
+  dashboardWorkspaces.forEach(ws => (ws.tasks || []).forEach(task => {
+    if (!(ws.role === 'mentor' || task.assignee === ws.workerName)) return;
+    if (needsAction(task, ws.role, ws.workerName)) dashboardNotifications.push({ ...task, workspaceId: ws.id, workspaceName: ws.name, kind: 'action', role: ws.role });
+    if (task.status === 'done') dashboardNotifications.push({ ...task, workspaceId: ws.id, workspaceName: ws.name, kind: 'done', role: ws.role });
+  }));
+  dashboardNotifications.sort((a, b) => a.kind === b.kind ? String(b.endDate || '').localeCompare(String(a.endDate || '')) : a.kind === 'action' ? -1 : 1);
+  const list = $('dashboardNotificationsList'); if (!list) return;
+  list.innerHTML = dashboardNotifications.length
+    ? dashboardNotifications.slice(0, 8).map(notifMarkup).join('')
+    : '<p class="empty-hint">Belum ada notifikasi. Aktivitas tugas akan muncul di sini.</p>';
+}
+function renderFullNotifications() {
+  const list = $('dashboardNotificationsListFull'); if (!list) return;
+  list.innerHTML = dashboardNotifications.length ? dashboardNotifications.map(notifMarkup).join('') : '<p class="empty-hint">Belum ada notifikasi.</p>';
+}
+function renderMiniCalendar() {
+  const el = $('miniCalendarList'); if (!el) return;
+  const end = new Date(); end.setDate(end.getDate() + 7);
+  const items = [];
+  dashboardWorkspaces.forEach(ws => (ws.tasks || []).forEach(t => {
+    if (t.status === 'done' || !t.endDate) return;
+    if (ws.role !== 'mentor' && t.assignee !== ws.workerName) return;
+    const d = new Date(t.endDate + 'T00:00:00');
+    if (d >= new Date(localDate() + 'T00:00:00') && d <= end) items.push({ t, ws, date: d });
+  }));
+  items.sort((a, b) => a.date - b.date);
+  if (!items.length) { el.innerHTML = '<div class="mini-cal-empty">Tidak ada tenggat dalam 7 hari ke depan.</div>'; return; }
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  el.innerHTML = items.slice(0, 8).map(({ t, ws, date }) => {
+    const lv = dueLevel(t);
+    return `<button type="button" class="mini-cal-item ${lv ? 'due-' + lv : ''}" onclick="openWorkspace('${ws.id}')">
+      <span class="mini-cal-date"><span class="day">${date.getDate()}</span><span class="mon">${months[date.getMonth()]}</span></span>
+      <span class="mini-cal-info"><strong>${escapeHtml(t.title)}</strong><small>${escapeHtml(ws.name)} · ${escapeHtml(t.assignee)}</small></span>
+      ${lv ? `<span class="due-badge due-${lv}">${dueLabel(t)}</span>` : ''}
+    </button>`;
+  }).join('');
+}
+function renderDashboardSummary() {
+  const el = $('dashboardSummary'); if (!el) return;
+  let total = 0, done = 0, action = 0, overdue = 0, soon = 0;
+  dashboardWorkspaces.forEach(ws => {
+    const s = ws.stats || { c: {}, total: 0, action: 0 };
+    total += s.total; done += (s.c.done || 0); action += s.action; overdue += (s.c.overdue || 0);
+    (ws.tasks || []).forEach(t => {
+      if (t.status === 'done') return;
+      const d = daysLeft(t);
+      if (d !== null && d >= 0 && d <= 7) soon++;
+    });
+  });
+  el.innerHTML = `
+    <div class="summary-item"><div class="num">${total}</div><div class="lbl">Total tugas</div></div>
+    <div class="summary-item stat-success"><div class="num">${done}</div><div class="lbl">Selesai</div></div>
+    <div class="summary-item stat-warning"><div class="num">${soon || action}</div><div class="lbl">Tenggat mendekat</div></div>
+    <div class="summary-item stat-danger"><div class="num">${overdue}</div><div class="lbl">Terlambat</div></div>`;
+
+  renderDashboardTaskList();
+  renderHabits();
+  renderMoodUI();
+  renderGreeting();
+}
+
+function renderDashboardTaskList() {
+  const el = $('dashboardTaskList'); if (!el) return;
+  const items = [];
+  dashboardWorkspaces.forEach(ws => (ws.tasks || []).forEach(t => {
+    if (ws.role === 'worker' && t.assignee !== ws.workerName) return;
+    items.push({ ...t, workspaceName: ws.name, workspaceId: ws.id });
+  }));
+  items.sort((a, b) => String(a.endDate || '9999').localeCompare(String(b.endDate || '9999')));
+  const top = items.slice(0, 6);
+  if (!top.length) {
+    el.innerHTML = '<p class="empty-hint">Belum ada tugas untukmu. Buat ruang kerja atau gabung dengan kode undangan, lalu tugas dari mentor akan muncul di sini.</p>';
     return;
   }
-  ul.innerHTML = S.events.map((ev) => {
-    if (ev.id === editingEventId) {
-      return `<li class="editing">
-        <form class="edit-panel" data-form="event-edit" data-id="${ev.id}">
-          <div class="field"><label>Nama Acara</label><input type="text" id="ev-name-${ev.id}" value="${esc(ev.name)}" required /></div>
-          <div class="field"><label>Tanggal</label><input type="date" id="ev-date-${ev.id}" value="${esc(ev.date)}" required /></div>
-          <div class="edit-actions">
-            <button class="btn btn-primary btn-sm" type="submit">${icon("save")} Simpan</button>
-            <button class="btn btn-secondary btn-sm" type="button" data-act="event-cancel">Batal</button>
-          </div>
-        </form></li>`;
-    }
-    const days = nextOccurrence(ev.date);
-    const chip = days === null ? "" : `<span class="chip-due">${days === 0 ? "Hari Ini!" : "H-" + days}</span>`;
-    return `<li>
-      <div class="row-main"><span class="row-title">${esc(ev.name)}</span><span class="row-sub">Berulang tiap tahun, ${esc(fmtFull(ev.date))}</span></div>
-      <strong class="row-date">${esc(fmtDay(ev.date))}</strong>${chip}
-      <div class="row-actions">
-        <button class="btn-icon btn-sm" type="button" data-act="event-edit" data-id="${ev.id}" aria-label="Ubah">${icon("edit")}</button>
-        <button class="btn-icon btn-sm" type="button" data-act="event-del" data-id="${ev.id}" aria-label="Hapus">${icon("trash")}</button>
-      </div></li>`;
-  }).join("");
+  el.innerHTML = top.map(t => {
+    const [label, cls] = statusInfo(t);
+    const due = !t.endDate ? '-' : t.status === 'done' ? t.endDate : dueLabel(t);
+    const dueCls = dueLevel(t);
+    return `<button type="button" class="dash-task-row" onclick="openWorkspace('${t.workspaceId}')">
+      <span class="dash-task-info">
+        <span class="dash-task-title">${escapeHtml(t.title)}</span>
+        <span class="dash-task-meta">${escapeHtml(t.workspaceName)}${t.assignee ? ', ' + escapeHtml(t.assignee) : ''}</span>
+      </span>
+      <span class="dash-task-badges">
+        <span class="stat-pill ${cls}">${label}</span>
+        ${dueCls ? `<span class="due-badge due-${dueCls}">${due}</span>` : `<span class="stat-pill s-todo">${due}</span>`}
+      </span>
+    </button>`;
+  }).join('');
 }
 
-function redComputed() {
-  const r = S.redDay;
-  const len = Math.min(45, Math.max(20, Number(r.cycleLength) || 28));
-  const elapsed = dayDiff(iso(), r.lastStart);
-  const cyclesPassed = elapsed >= 0 ? Math.floor(elapsed / len) : 0;
-  const nextStart = new Date(r.lastStart + "T00:00:00");
-  nextStart.setDate(nextStart.getDate() + (cyclesPassed + (elapsed >= 0 ? 1 : 0)) * len);
-  const cycleDay = elapsed >= 0 ? (elapsed % len) + 1 : 1;
-  const auto = cycleDay <= 5 ? "Perhatian & Sayang Ekstra" : "Normal";
-  const status = r.statusMode === "manual" ? r.manualStatus : auto;
-  return { len, nextStart: iso(nextStart), cycleDay, status };
-}
-function renderRed() {
-  const c = redComputed();
-  const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
-  set("red-start-date", fmtFull(c.nextStart));
-  set("red-cycle-day", `Hari ke-${c.cycleDay} dari ${c.len}`);
-  set("red-cycle-len", `${c.len} hari`);
-  set("red-status", c.status);
-}
-function openRedEdit() {
-  const r = S.redDay;
-  if ($("red-date-input"))   $("red-date-input").value   = r.lastStart;
-  if ($("red-cycle-input"))  $("red-cycle-input").value  = r.cycleLength;
-  if ($("red-mode-input"))   $("red-mode-input").value   = r.statusMode;
-  if ($("red-manual-input")) $("red-manual-input").value = r.manualStatus;
-  const mw = $("red-manual-wrap"); if (mw) mw.classList.toggle("hidden", r.statusMode !== "manual");
-  $("red-view")?.classList.add("hidden");
-  $("red-edit-form")?.classList.remove("hidden");
-  $("red-date-input")?.focus();
-}
-function closeRedEdit() {
-  $("red-edit-form")?.classList.add("hidden");
-  $("red-view")?.classList.remove("hidden");
-}
-
-function renderMoodTabs() {
-  document.querySelectorAll(".sub-tab").forEach((t) => {
-    const on = t.dataset.person === moodPerson;
-    t.classList.toggle("active", on);
-    t.setAttribute("aria-pressed", String(on));
-  });
-}
-function renderMood() {
-  const data = S.moods[moodPerson];
-  const nick = NAMES[moodPerson].nick;
-  if ($("mood-board-title")) $("mood-board-title").textContent = `Mood ${nick}`;
-  if ($("mood-selector")) {
-    $("mood-selector").innerHTML = MOODS.map((m) =>
-      `<button class="mood-btn ${data.mood === m.key ? "active" : ""}" type="button" data-mood="${m.key}" aria-pressed="${data.mood === m.key}">${m.emoji} ${m.label}</button>`
-    ).join("");
-  }
-  const cur = MOODS.find((m) => m.key === data.mood);
-  if ($("current-mood-text")) $("current-mood-text").textContent = cur ? `${cur.emoji} ${cur.label}` : "Belum dipilih";
-  if ($("mood-advice")) $("mood-advice").textContent = cur ? `Pesan otomatis: ${cur.msg}` : "Pilih salah satu mood di atas.";
-  if ($("mood-note")) $("mood-note").textContent = data.note || "";
-  if ($("mood-time")) $("mood-time").textContent = data.updatedAt ? `Diperbarui ${fmtStamp(data.updatedAt)}` : "";
-  const noteInp = $("mood-note-input");
-  if (noteInp && document.activeElement !== noteInp) noteInp.value = data.note || "";
-  const hist = (data.history || []).slice(0, 14);
-  if ($("mood-history-count")) $("mood-history-count").textContent = `${hist.length} hari`;
-  const histEl = $("mood-history");
-  if (histEl) {
-    histEl.innerHTML = hist.length
-      ? hist.map((h) => `<li><span class="history-date">${esc(fmtDay(h.date))}</span><div class="history-body"><strong>${esc(h.emoji)} ${esc(h.label)}</strong>${h.note ? `<span>: ${esc(h.note)}</span>` : ""}</div></li>`).join("")
-      : `<li class="empty-hint">Belum ada riwayat mood.</li>`;
-  }
-  const jm = MOODS.find((m) => m.key === S.moods.julie.mood);
-  const am = MOODS.find((m) => m.key === S.moods.abyant.mood);
-  const setT = (id, v) => { const el = $(id); if (el) el.textContent = v; };
-  setT("hero-mood-julie", jm ? `${jm.emoji} ${jm.label}` : "Belum diisi");
-  setT("hero-mood-abyant", am ? `${am.emoji} ${am.label}` : "Belum diisi");
-  setT("hero-note-julie", S.moods.julie.note || "Belum ada pesan hari ini.");
-  setT("hero-note-abyant", S.moods.abyant.note || "Belum ada pesan hari ini.");
-}
-function pushMoodHistory(person) {
-  const d = S.moods[person];
-  const m = MOODS.find((x) => x.key === d.mood);
-  const today = iso();
-  const entry = { date: today, mood: d.mood, emoji: m ? m.emoji : "•", label: m ? m.label : "belum", note: d.note || "" };
-  d.history = [entry, ...(d.history || []).filter((h) => h.date !== today)].slice(0, 14);
-}
-
-function renderGallery() {
-  const grid = $("gallery-grid"); if (!grid) return;
-  if (!S.gallery.length) { grid.innerHTML = `<p class="empty-hint">Belum ada momen tersimpan.</p>`; return; }
-  grid.innerHTML = S.gallery.map((g) => `<figure class="gallery-card">
-    <img class="gallery-img" src="${esc(g.src)}" alt="${esc(g.title)}" width="480" height="360" loading="lazy" />
-    <button class="gallery-del" type="button" data-act="gal-del" data-id="${g.id}" aria-label="Hapus">${icon("trash")}</button>
-    <figcaption class="gallery-overlay">${esc(g.title)}</figcaption>
-  </figure>`).join("");
-}
-function compressImage(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Gagal membaca berkas."));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error("Berkas bukan gambar valid."));
-      img.onload = () => {
-        const max = 960;
-        let { width, height } = img;
-        if (width > max || height > max) {
-          const scale = max / Math.max(width, height);
-          width = Math.round(width * scale); height = Math.round(height * scale);
-        }
-        const c = document.createElement("canvas");
-        c.width = width; c.height = height;
-        c.getContext("2d").drawImage(img, 0, 0, width, height);
-        resolve(c.toDataURL("image/jpeg", 0.65));
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-const tp = { hour: 8, minute: 0, open: false };
-function buildTimePicker() {
-  const h = $("tp-hours"), m = $("tp-minutes"); if (!h || !m) return;
-  h.innerHTML = Array.from({ length: 24 }, (_, i) =>
-    `<button class="tp-item" type="button" role="option" data-h="${i}">${pad(i)}</button>`).join("");
-  m.innerHTML = Array.from({ length: 60 }, (_, i) =>
-    `<button class="tp-item" type="button" role="option" data-m="${i}">${pad(i)}</button>`).join("");
-}
-function paintTimePicker() {
-  $("tp-hours")?.querySelectorAll(".tp-item").forEach((b) => {
-    const on = Number(b.dataset.h) === tp.hour;
-    b.classList.toggle("active", on); b.setAttribute("aria-selected", String(on));
-  });
-  $("tp-minutes")?.querySelectorAll(".tp-item").forEach((b) => {
-    const on = Number(b.dataset.m) === tp.minute;
-    b.classList.toggle("active", on); b.setAttribute("aria-selected", String(on));
-  });
-}
-function openTimePicker() {
-  const cur = $("rem-time")?.value;
-  if (/^\d{2}:\d{2}$/.test(cur || "")) { const [h, m] = cur.split(":").map(Number); tp.hour = h; tp.minute = m; }
-  tp.open = true;
-  $("timepicker-panel")?.classList.remove("hidden");
-  $("rem-time-display")?.setAttribute("aria-expanded", "true");
-  paintTimePicker();
-}
-function closeTimePicker() {
-  tp.open = false;
-  $("timepicker-panel")?.classList.add("hidden");
-  $("rem-time-display")?.setAttribute("aria-expanded", "false");
-}
-function applyTimePicker() {
-  const val = `${pad(tp.hour)}:${pad(tp.minute)}`;
-  if ($("rem-time")) $("rem-time").value = val;
-  if ($("rem-time-label")) $("rem-time-label").textContent = val;
-  closeTimePicker();
-  pop(520);
-}
-
-function renderReminders() {
-  const ul = $("reminder-list"); if (!ul) return;
-  const cnt = $("reminders-count"); if (cnt) cnt.textContent = S.reminders.length;
-  if (!S.reminders.length) { ul.innerHTML = `<li class="empty-hint">Belum ada pengingat aktif.</li>`; return; }
-  ul.innerHTML = [...S.reminders].sort((a, b) => a.time.localeCompare(b.time)).map((r) => `<li>
-    <div class="row-main"><span class="row-title">${esc(r.text)}</span></div>
-    <strong class="row-date">${esc(r.time)}</strong>
-    <div class="row-actions">
-      <button class="btn-icon btn-sm" type="button" data-act="rem-del" data-id="${r.id}" aria-label="Hapus">${icon("trash")}</button>
-    </div></li>`).join("");
-}
-
-function wibClockHM() {
-  const now = new Date();
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
-  const wib = new Date(utcMs + 7 * 3600 * 1000);
-  return `${pad(wib.getUTCHours())}:${pad(wib.getUTCMinutes())}`;
-}
-function startReminderScheduler() {
-  setInterval(() => {
-    const nowHM = wibClockHM();
-    const todayKey = iso();
-    S.reminders.forEach((r) => {
-      if (r.time !== nowHM) return;
-      const fireKey = `${todayKey}|${r.id}`;
-      if (reminderFiredToday.has(fireKey)) return;
-      reminderFiredToday.add(fireKey);
-      toast(`⏰ ${r.text}`, "info");
-      pop(660);
-      launchConfetti(24);
-    });
-    if (reminderFiredToday.size && ![...reminderFiredToday][0].startsWith(todayKey)) reminderFiredToday.clear();
-  }, 30000);
-}
-
-function taskRow(item, kind) {
-  const cls = item.state === "done" ? "is-done" : item.state === "cancelled" ? "is-cancelled" : "";
-  const checkIco = item.state === "done" ? "✅ " : "";
-  const tag = item.state === "cancelled" ? `<span class="tag-cancelled">Dibatalkan</span>` : "";
-  let actions = "";
-  if (item.state === "active") {
-    actions = `
-      <button class="btn btn-primary btn-sm" type="button" data-act="${kind}-done" data-id="${item.id}">${kind === "dream" ? "Terwujud" : "Selesai"}</button>
-      <button class="btn-icon btn-sm" type="button" data-act="${kind}-cancel" data-id="${item.id}" aria-label="Batalkan">${icon("x")}</button>
-      <button class="btn-icon btn-sm" type="button" data-act="${kind}-del" data-id="${item.id}" aria-label="Hapus">${icon("trash")}</button>`;
-  } else {
-    actions = `
-      <button class="btn btn-secondary btn-sm" type="button" data-act="${kind}-restore" data-id="${item.id}">${icon("undo")} Aktifkan</button>
-      <button class="btn-icon btn-sm" type="button" data-act="${kind}-del" data-id="${item.id}" aria-label="Hapus">${icon("trash")}</button>`;
-  }
-  return `<li class="todo-item ${cls}"><span class="todo-text">${checkIco}${esc(item.text)} ${tag}</span><div class="todo-actions">${actions}</div></li>`;
-}
-function renderTodos() {
-  const ul = $("todo-list"); if (!ul) return;
-  ul.innerHTML = S.todos.length ? S.todos.map((t) => taskRow(t, "todo")).join("") : `<li class="empty-hint">Belum ada tugas.</li>`;
-}
-function renderDreams() {
-  const ul = $("dream-list"); if (!ul) return;
-  ul.innerHTML = S.dreams.length ? S.dreams.map((d) => taskRow(d, "dream")).join("") : `<li class="empty-hint">Belum ada impian tercatat.</li>`;
-}
-function bindTaskList(listId, getArr, kind, rerender) {
-  const el = $(listId); if (!el) return;
-  el.addEventListener("click", async (e) => {
-    const btn = e.target.closest("[data-act]"); if (!btn) return;
-    const arr = getArr();
-    const item = arr.find((x) => x.id === btn.dataset.id); if (!item) return;
-    const act = btn.dataset.act;
-    if (act === `${kind}-done`) {
-      item.state = "done"; save(); rerender(); pop(480);
-      launchConfetti(kind === "dream" ? 90 : 40);
-      addScore(kind === "dream" ? 30 : 5);
-      toast(kind === "dream" ? "Impian terwujud! 🎉" : "Tugas selesai! ✨", "success");
-    } else if (act === `${kind}-cancel`) {
-      item.state = "cancelled"; save(); rerender(); pop(400);
-      toast("Dibatalkan.");
-    } else if (act === `${kind}-restore`) {
-      item.state = "active"; save(); rerender(); pop(520);
-    } else if (act === `${kind}-del`) {
-      if (!await askConfirm(`Hapus permanen "${item.text}"?`, { title: "Hapus", confirmText: "Hapus", danger: true })) return;
-      const next = arr.filter((x) => x.id !== item.id);
-      if (kind === "todo") S.todos = next; else S.dreams = next;
-      save(); rerender(); toast("Dihapus.");
-    }
-  });
-}
-
-function renderCapsules() {
-  const grid = $("capsule-grid"); if (!grid) return;
-  const cnt = $("capsules-count"); if (cnt) cnt.textContent = S.capsules.length;
-  if (!S.capsules.length) { grid.innerHTML = `<p class="empty-hint">Belum ada kapsul tersimpan.</p>`; return; }
-  const today = iso();
-  grid.innerHTML = S.capsules.map((c) => {
-    const open = today >= c.openDate;
-    return `<article class="capsule-card ${open ? "is-open" : ""}">
-      <h4>${open ? "💌 " : "🔒 "} ${esc(c.title)}</h4>
-      <span class="cap-date">${open ? "Terbuka sejak" : "Buka pada"} ${esc(fmtFull(c.openDate))}</span>
-      <div class="capsule-content ${open ? "" : "locked"}">${open ? esc(c.msg) : "Terkunci sampai tanggalnya tiba."}</div>
-      <div class="card-actions mt-16">
-        <button class="btn-icon btn-sm" type="button" data-act="cap-edit" data-id="${c.id}" aria-label="Ubah">${icon("edit")}</button>
-        <button class="btn-icon btn-sm" type="button" data-act="cap-del" data-id="${c.id}" aria-label="Hapus">${icon("trash")}</button>
-      </div>
-    </article>`;
-  }).join("");
-}
-
-function renderSongs() {
-  const list = $("song-list"); if (!list) return;
-  const cnt = $("songs-count"); if (cnt) cnt.textContent = `${S.songs.length} lagu`;
-  if (!S.songs.length) { list.innerHTML = `<p class="empty-hint">Belum ada lagu.</p>`; return; }
-  list.innerHTML = S.songs.map((s) => {
-    const isAudio = s.kind === "audio";
-    const main = isAudio
-      ? `<button class="song-play" type="button" data-act="song-play" data-id="${s.id}" aria-label="Putar">${icon("play")}<span class="song-meta"><strong>${esc(s.title)}</strong>${s.note ? `<span>${esc(s.note)}</span>` : ""}</span></button>`
-      : `<span class="song-play"><span class="song-meta"><strong>${esc(s.title)}</strong>${s.note ? `<span>${esc(s.note)}</span>` : ""}</span></span>`;
-    const linkBtn = isAudio ? "" : `<a class="btn btn-secondary btn-sm" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Buka Tautan</a>`;
-    return `<div class="song-row ${currentSongId === s.id ? "active" : ""}">
-      ${main}
-      <span class="kind-tag">${isAudio ? "Audio" : "Tautan"}</span>
-      ${linkBtn}
-      <button class="btn-icon btn-sm" type="button" data-act="song-edit" data-id="${s.id}" aria-label="Ubah">${icon("edit")}</button>
-      <button class="btn-icon btn-sm" type="button" data-act="song-del" data-id="${s.id}" aria-label="Hapus">${icon("trash")}</button>
-    </div>`;
-  }).join("");
-}
-function playSong(s) {
-  currentSongId = s.id;
-  if ($("now-playing-title")) $("now-playing-title").textContent = s.title;
-  if ($("now-playing-desc")) $("now-playing-desc").textContent = s.note ? `"${s.note}"` : "Diputar sekarang.";
-  $("audio-error")?.classList.add("hidden");
-  const player = $("audio-player");
-  if (player) {
-    player.src = s.url;
-    player.play().catch(() => showAudioError("Tautan tidak bisa diputar langsung."));
-  }
-  renderSongs(); pop(500);
-}
-function showAudioError(msg) {
-  const el = $("audio-error"); if (!el) return;
-  el.textContent = msg; el.classList.remove("hidden");
-  $("vinyl-disc")?.classList.remove("spinning");
-}
-
-function renderPlaces() {
-  const grid = $("places-grid"); if (!grid) return;
-  if (!S.places.length) { grid.innerHTML = `<p class="empty-hint">Belum ada tempat berkesan.</p>`; return; }
-  grid.innerHTML = S.places.map((p) => {
-    if (p.id === editingPlaceId) {
-      return `<article class="place-card editing">
-        <form class="stacked-form" data-form="place-edit" data-id="${p.id}">
-          <div class="field"><label>Nama Tempat</label><input type="text" id="pl-name-${p.id}" value="${esc(p.name)}" required /></div>
-          <div class="field"><label>Lokasi / Alamat</label><input type="text" id="pl-loc-${p.id}" value="${esc(p.location)}" required /></div>
-          <div class="field"><label>Kenangan</label><textarea id="pl-mem-${p.id}" rows="3" required>${esc(p.memory)}</textarea></div>
-          <div class="edit-actions">
-            <button class="btn btn-primary btn-sm" type="submit">${icon("save")} Simpan</button>
-            <button class="btn btn-secondary btn-sm" type="button" data-act="place-cancel">Batal</button>
-          </div>
-        </form></article>`;
-    }
-    return `<article class="place-card">
-      <div class="place-name">${esc(p.name)}</div>
-      <div class="place-loc">📍 ${esc(p.location)}</div>
-      <p class="place-memory">${esc(p.memory)}</p>
-      <div class="card-actions mt-16">
-        <button class="btn-icon btn-sm" type="button" data-act="place-edit" data-id="${p.id}" aria-label="Ubah">${icon("edit")}</button>
-        <button class="btn-icon btn-sm" type="button" data-act="place-del" data-id="${p.id}" aria-label="Hapus">${icon("trash")}</button>
-      </div>
-    </article>`;
-  }).join("");
-}
-
-function renderCoupons() {
-  const avail = $("coupons-grid"), hist = $("coupons-history");
-  if ($("coupons-available-count")) $("coupons-available-count").textContent = S.coupons.available.length;
-  if ($("coupons-claimed-count"))   $("coupons-claimed-count").textContent   = S.coupons.claimed.length;
-  if (avail) {
-    avail.innerHTML = S.coupons.available.length
-      ? S.coupons.available.map((c) => `<article class="coupon-card">
-          <h4>🎟️ ${esc(c.title)}</h4>
-          <p>${esc(c.desc)}</p>
-          <div class="coupon-actions">
-            <button class="btn btn-primary btn-sm" type="button" data-act="cp-claim" data-id="${c.id}">Klaim Kupon</button>
-            <button class="btn-icon btn-sm" type="button" data-act="cp-edit" data-id="${c.id}" aria-label="Ubah">${icon("edit")}</button>
-            <button class="btn-icon btn-sm" type="button" data-act="cp-del" data-id="${c.id}" aria-label="Hapus">${icon("trash")}</button>
-          </div>
-        </article>`).join("")
-      : `<p class="empty-hint">Semua kupon sudah diklaim.</p>`;
-  }
-  if (hist) {
-    hist.innerHTML = S.coupons.claimed.length
-      ? [...S.coupons.claimed].sort((a, b) => (b.claimedAt || 0) - (a.claimedAt || 0)).map((c) => `<article class="coupon-card claimed">
-          <span class="badge-claimed">✓ Sudah Diklaim</span>
-          <h4>${esc(c.title)}</h4>
-          <p>${esc(c.desc)}</p>
-          <span class="claimed-at">Diklaim ${esc(fmtStamp(c.claimedAt))}</span>
-          <div class="coupon-actions">
-            <button class="btn btn-secondary btn-sm" type="button" data-act="cp-undo" data-id="${c.id}">${icon("undo")} Batalkan</button>
-            <button class="btn-icon btn-sm" type="button" data-act="cp-del-claimed" data-id="${c.id}" aria-label="Hapus">${icon("trash")}</button>
-          </div>
-        </article>`).join("")
-      : `<p class="empty-hint">Belum ada kupon diklaim.</p>`;
-  }
-}
-async function couponAction(e) {
-  const btn = e.target.closest("[data-act]"); if (!btn) return;
-  const act = btn.dataset.act, id = btn.dataset.id;
-  if (act === "cp-claim") {
-    const i = S.coupons.available.findIndex((x) => x.id === id); if (i < 0) return;
-    const [c] = S.coupons.available.splice(i, 1);
-    S.coupons.claimed.push({ ...c, claimedAt: Date.now() });
-    save(); renderCoupons(); pop(750); launchConfetti(80); addScore(25);
-    toast("Kupon berhasil diklaim! 🎫", "success");
-  } else if (act === "cp-undo") {
-    const i = S.coupons.claimed.findIndex((x) => x.id === id); if (i < 0) return;
-    const [c] = S.coupons.claimed.splice(i, 1);
-    delete c.claimedAt;
-    S.coupons.available.push(c);
-    save(); renderCoupons(); pop(500);
-    toast("Klaim dibatalkan.");
-  } else if (act === "cp-edit") {
-    const c = S.coupons.available.find((x) => x.id === id); if (!c) return;
-    if ($("coupon-edit-id"))    $("coupon-edit-id").value    = c.id;
-    if ($("coupon-edit-title")) $("coupon-edit-title").value = c.title;
-    if ($("coupon-edit-desc"))  $("coupon-edit-desc").value  = c.desc;
-    openModal("coupon-modal");
-  } else if (act === "cp-del" || act === "cp-del-claimed") {
-    const pool = act === "cp-del" ? S.coupons.available : S.coupons.claimed;
-    const c = pool.find((x) => x.id === id);
-    if (!await askConfirm(`Hapus kupon "${c?.title}"?`, { title: "Hapus", confirmText: "Hapus", danger: true })) return;
-    if (act === "cp-del") S.coupons.available = pool.filter((x) => x.id !== id);
-    else                  S.coupons.claimed   = pool.filter((x) => x.id !== id);
-    save(); renderCoupons(); toast("Dihapus.");
-  }
-}
-
-function renderAll() {
-  renderScore();
-  renderEvents();
-  renderRed();
-  renderMoodTabs();
-  renderMood();
-  renderGallery();
-  renderReminders();
-  renderTodos();
-  renderCapsules();
-  renderSongs();
-  renderPlaces();
-  renderCoupons();
-  renderDreams();
-  updateQuota();
-}
-
-async function initFirestoreSync() {
-  try {
-    const snap = await getDoc(ROOM_REF);
-    if (!snap.exists()) {
-      await setDoc(ROOM_REF, { ...S, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-    }
-  } catch (err) {
-    console.warn("Inisialisasi Firestore:", err);
-    setSync("error");
-  }
-  if (unsubRoom) unsubRoom();
-  unsubRoom = onSnapshot(ROOM_REF, (docSnap) => {
-    if (!docSnap.exists()) return;
-    setSync("ready");
-    const data = docSnap.data();
-    const incoming = JSON.stringify(data);
-    if (incoming === lastSyncedFingerprint) return;
-    S = mergeState(data);
-    lastSyncedFingerprint = incoming;
-    renderAll();
-  }, (err) => {
-    console.error("Listener error:", err);
-    setSync("error");
-  });
-}
-
-/* AUTHENTICATION */
-let currentUser = null;
-function showAuthError(msg) {
-  const el = $("authError"); if (!el) return;
-  el.textContent = msg; el.classList.remove("hidden");
-}
-function clearAuthError() { $("authError")?.classList.add("hidden"); }
-
-function toggleAuthMode() {
-  const isLogin = !$("loginForm")?.classList.contains("hidden");
-  $("loginForm")?.classList.toggle("hidden", isLogin);
-  $("registerForm")?.classList.toggle("hidden", !isLogin);
-  if ($("authTitle"))    $("authTitleinnerHTML") = isLogin ? 'Buat Akun' : 'Masuk Buku';
-  if ($("authSubtitle")) $("authSubtitle").textContent = isLogin ? "Daftar dengan email bersama." : "Gunakan akun yang telah terdaftar.";
-  if ($("authToggleText")) $("authToggleText").textContent = isLogin ? "Sudah punya akun? Masuk" : "Belum punya akun? Daftar";
-  clearAuthError();
-}
-
-async function handleLogin(e) {
-  e.preventDefault(); clearAuthError();
-  const email = $("loginEmail")?.value.trim() || "";
-  const pw    = $("loginPassword")?.value || "";
-  const btn   = $("loginBtn");
-  if (!email || !pw) return showAuthError("Email dan kata sandi wajib diisi.");
-  if (btn) { btn.disabled = true; btn.textContent = "Memeriksa…"; }
-  try {
-    await setPersistence(auth, $("rememberMe")?.checked ? browserLocalPersistence : browserSessionPersistence);
-    await signInWithEmailAndPassword(auth, email, pw);
-  } catch (err) {
-    showAuthError("Email atau kata sandi salah.");
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Buka Buku Sekarang"; }
-  }
-}
-
-async function handleRegister(e) {
-  e.preventDefault(); clearAuthError();
-  const name  = $("registerName")?.value.trim() || "";
-  const email = $("registerEmail")?.value.trim() || "";
-  const pw    = $("registerPassword")?.value || "";
-  const btn   = $("registerBtn");
-  if (!name || !email || !pw) return showAuthError("Semua field wajib diisi.");
-  if (pw.length < 6) return showAuthError("Kata sandi minimal 6 karakter.");
-  if (btn) { btn.disabled = true; btn.textContent = "Mendaftarkan…"; }
-  try {
-    const cred = await createUserWithEmailAndPassword(auth, email, pw);
-    if (name) await updateProfile(cred.user, { displayName: name });
-    await setDoc(doc(db, "users", cred.user.uid), { email, displayName: name, createdAt: serverTimestamp() });
-  } catch (err) {
-    showAuthError("Gagal mendaftar: " + err.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Buat Akun Baru"; }
-  }
-}
-
-async function handleLogout() {
-  if (!await askConfirm("Keluar dari ruang privat ini?", { title: "Keluar", confirmText: "Keluar", danger: true })) return;
-  try { await signOut(auth); } catch (e) {}
-}
-
-async function handleGoogleLogin() {
-  try {
-    await signInWithPopup(auth, new GoogleAuthProvider());
-  } catch (err) {
-    if (err.code !== "auth/popup-closed-by-user") showAlert("Login Google gagal.", "Gagal");
-  }
-}
-
-async function handleForgotPassword(e) {
+// Ruang kerja
+async function handleCreateWorkspace(e) {
   e.preventDefault();
-  const email = $("loginEmail")?.value.trim();
-  if (!email) return showAlert("Isi alamat email terlebih dahulu.", "Lupa Sandi");
+  const name = $('newWorkspaceName').value.trim();
+  const codeInput = ($('newWorkspaceCode')?.value || '').trim().toUpperCase();
+  const drive = ($('newWorkspaceDrive')?.value || '').trim();
+  if (!name || codeInput.length !== 6) return showAlert('Nama dan kode 6 karakter wajib diisi.');
+  const btn = $('createWorkspaceSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Membuat…';
   try {
-    await sendPasswordResetEmail(auth, email);
-    showAlert("Tautan reset kata sandi sudah dikirim ke email.", "Terkirim");
-  } catch (err) {
-    showAlert("Gagal mengirim email reset.", "Error");
-  }
+    if (!(await getDocs(query(collection(db, 'workspaces'), where('joinCode', '==', codeInput), limit(1)))).empty) {
+      return showAlert('Kode undangan sudah digunakan. Pilih kode lain.');
+    }
+    const uid = state.user.uid;
+    const mentorName = state.user.displayName || 'Lead';
+    const wsRef = doc(collection(db, 'workspaces'));
+    const batch = writeBatch(db);
+    batch.set(wsRef, { name, ownerUid: uid, joinCode: codeInput, driveLink: drive ? safeUrl(drive) : '', createdAt: serverTimestamp() });
+    batch.set(doc(db, 'workspaces', wsRef.id, 'members', uid), { uid, email: state.user.email, name: mentorName, role: 'mentor', division: 'Manajemen', joinedAt: serverTimestamp(), lastActive: serverTimestamp() });
+    batch.set(doc(db, 'users', uid), { workspaceIds: arrayUnion(wsRef.id) }, { merge: true });
+    await batch.commit();
+    state.workspaceId = wsRef.id; state.workspaceName = name; state.role = 'mentor'; state.workerName = mentorName;
+    $('createWorkspaceModal').classList.add('hidden');
+    $('createWorkspaceForm').reset();
+    showWorkspaceView(); subscribeToWorkspace();
+  } catch (err) { await showAlert('Gagal membuat ruang kerja: ' + err.message); }
+  finally { btn.disabled = false; btn.textContent = 'Buat ruang kerja'; }
 }
-
-async function handleAccountUpdate(e) {
+async function handleJoinWorkspace(e) {
   e.preventDefault();
-  const newName = $("accountName")?.value.trim();
-  const newPw   = $("accountPassword")?.value;
-  if (!currentUser) return;
+  const code = $('joinCodeInput').value.trim().toUpperCase();
+  if (code.length !== 6) return showAlert('Kode harus 6 karakter.');
+  const btn = $('joinWorkspaceSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Mencari…';
   try {
-    if (newPw) await updatePassword(currentUser, newPw);
-    if (newName && newName !== currentUser.displayName) {
-      await updateProfile(currentUser, { displayName: newName });
-      await setDoc(doc(db, "users", currentUser.uid), { displayName: newName }, { merge: true });
-    }
-    $("accountModal")?.classList.add("hidden");
-    toast("Akun diperbarui!", "success");
-  } catch (err) {
-    showAlert("Gagal memperbarui akun. Silakan login ulang jika mengganti sandi.");
-  }
-}
-
-function updateTopbarUser(user) {
-  if (!user) return;
-  const name = user.displayName || user.email?.split("@")[0] || "Pengguna";
-  if ($("topbarUserName")) $("topbarUserName").textContent = name;
-}
-
-function on(id, ev, fn) {
-  const el = typeof id === "string" ? $(id) : id;
-  if (!el) return null;
-  el.addEventListener(ev, fn);
-  return el;
-}
-
-function setupEventListeners() {
-  on("loginForm",          "submit", handleLogin);
-  on("registerForm",       "submit", handleRegister);
-  on("authToggleLink",     "click",  (e) => { e.preventDefault(); toggleAuthMode(); });
-  on("googleLoginBtn",     "click",  handleGoogleLogin);
-  on("forgotPasswordLink", "click",  handleForgotPassword);
-  on("btn-logout",         "click",  handleLogout);
-  on("accountBtn",         "click",  () => {
-    if (!currentUser) return;
-    if ($("accountName"))     $("accountName").value     = currentUser.displayName || "";
-    if ($("accountPassword")) $("accountPassword").value = "";
-    openModal("accountModal");
-  });
-  on("accountForm", "submit", handleAccountUpdate);
-
-  on("btn-hug", "click", () => {
-    S.meta.hugs += 1;
-    addScore(15);
-    pop(650);
-    launchConfetti(85);
-    toast("Pelukan terkirim! 🤗", "success");
-  });
-
-  on("theme-toggle", "click", () => {
-    applyTheme(currentTheme === "light" ? "dark" : "light");
-    pop(440);
-  });
-
-  document.querySelectorAll(".feat-tab").forEach((tab) => {
-    on(tab, "click", () => activateTab(tab));
-    tab.addEventListener("keydown", onTabKey);
-  });
-  window.addEventListener("hashchange", () => { const t = tabFromHash(); if (t) activateTab(t, { updateHash: false }); });
-
-  on("add-event-form", "submit", (e) => {
-    e.preventDefault();
-    const name = $("event-name")?.value.trim(), date = $("event-date")?.value;
-    if (!name || !date) return;
-    S.events.push({ id: uid(), name, date });
-    save(); renderEvents(); e.target.reset(); pop(600); addScore(10);
-    toast("Hari spesial ditambahkan! 🎉", "success");
-  });
-  on("anniversary-list", "click", async (e) => {
-    const btn = e.target.closest("[data-act]"); if (!btn) return;
-    const act = btn.dataset.act, id = btn.dataset.id;
-    if (act === "event-edit") { editingEventId = id; renderEvents(); $(`ev-name-${id}`)?.focus(); }
-    else if (act === "event-cancel") { editingEventId = null; renderEvents(); }
-    else if (act === "event-del") {
-      const ev = S.events.find((x) => x.id === id);
-      if (!await askConfirm(`Hapus "${ev?.name}"?`, { title: "Hapus", confirmText: "Hapus", danger: true })) return;
-      S.events = S.events.filter((x) => x.id !== id);
-      save(); renderEvents(); toast("Dihapus.");
-    }
-  });
-  on("anniversary-list", "submit", (e) => {
-    const form = e.target.closest('[data-form="event-edit"]'); if (!form) return;
-    e.preventDefault();
-    const id = form.dataset.id;
-    const name = $(`ev-name-${id}`)?.value.trim(), date = $(`ev-date-${id}`)?.value;
-    if (!name || !date) return;
-    const ev = S.events.find((x) => x.id === id);
-    if (ev) { ev.name = name; ev.date = date; }
-    editingEventId = null; save(); renderEvents(); pop(560);
-    toast("Diperbarui!", "success");
-  });
-
-  on(document.querySelector('[data-act="red-edit"]'),   "click", openRedEdit);
-  on(document.querySelector('[data-act="red-cancel"]'), "click", closeRedEdit);
-  on("red-mode-input", "change", (e) => {
-    $("red-manual-wrap")?.classList.toggle("hidden", e.target.value !== "manual");
-  });
-  on("red-edit-form", "submit", (e) => {
-    e.preventDefault();
-    const len = Number($("red-cycle-input")?.value);
-    if (!Number.isFinite(len) || len < 20 || len > 45) return showAlert("Panjang siklus antara 20 dan 45 hari.");
-    S.redDay = {
-      lastStart:    $("red-date-input")?.value,
-      cycleLength:  Math.round(len),
-      statusMode:   $("red-mode-input")?.value,
-      manualStatus: $("red-manual-input")?.value
-    };
-    save(); renderRed(); closeRedEdit(); pop(540);
-    toast("Siklus diperbarui!", "success");
-  });
-  on("btn-log-red", "click", () => {
-    S.redDay.lastStart = iso();
-    save(); renderRed(); pop(540); launchConfetti(40);
-    toast("Tanggal mulai dicatat!", "success");
-  });
-
-  document.querySelectorAll(".sub-tab").forEach((t) => {
-    on(t, "click", () => { moodPerson = t.dataset.person; renderMoodTabs(); renderMood(); pop(500); });
-  });
-  on("mood-selector", "click", (e) => {
-    const btn = e.target.closest("[data-mood]"); if (!btn) return;
-    const d = S.moods[moodPerson];
-    d.mood = btn.dataset.mood;
-    d.updatedAt = Date.now();
-    pushMoodHistory(moodPerson);
-    save(); renderMood(); pop(580); addScore(5);
-    toast("Mood tersinkronisasi! ✨", "success");
-  });
-  on("mood-note-form", "submit", (e) => {
-    e.preventDefault();
-    const d = S.moods[moodPerson];
-    d.note = $("mood-note-input")?.value.trim() || "";
-    d.updatedAt = Date.now();
-    pushMoodHistory(moodPerson);
-    save(); renderMood(); pop(600);
-    toast("Pesan harian disimpan!", "success");
-  });
-
-  on("gallery-form", "submit", async (e) => {
-    e.preventDefault();
-    const err = $("gallery-error"); err?.classList.add("hidden");
-    const title = $("gallery-title")?.value.trim();
-    const url = httpUrl($("gallery-img")?.value);
-    const file = $("gallery-file")?.files[0];
-    if (!title) { if (err) { err.textContent = "Judul wajib diisi."; err.classList.remove("hidden"); } return; }
-    if (!url && !file) { if (err) { err.textContent = "Masukkan URL atau pilih berkas."; err.classList.remove("hidden"); } return; }
-    let src = url;
-    if (file) {
-      if (!file.type.startsWith("image/")) { if (err) { err.textContent = "Berkas harus gambar."; err.classList.remove("hidden"); } return; }
-      try { src = await compressImage(file); }
-      catch (ex) { if (err) { err.textContent = ex.message; err.classList.remove("hidden"); } return; }
-    }
-    S.gallery.unshift({ id: uid(), title, src });
-    if (!await save()) { S.gallery.shift(); return; }
-    renderGallery(); e.target.reset(); pop(620); addScore(10);
-    toast("Momen tersimpan! 📸", "success");
-  });
-  on("gallery-grid", "click", async (e) => {
-    const btn = e.target.closest('[data-act="gal-del"]'); if (!btn) return;
-    if (!await askConfirm("Hapus momen ini?", { title: "Hapus", confirmText: "Hapus", danger: true })) return;
-    S.gallery = S.gallery.filter((x) => x.id !== btn.dataset.id);
-    save(); renderGallery(); toast("Dihapus.");
-  });
-
-  buildTimePicker();
-  on("rem-time-display", "click", () => tp.open ? closeTimePicker() : openTimePicker());
-  on("tp-hours",   "click", (e) => { const b = e.target.closest("[data-h]"); if (b) { tp.hour   = Number(b.dataset.h); paintTimePicker(); } });
-  on("tp-minutes", "click", (e) => { const b = e.target.closest("[data-m]"); if (b) { tp.minute = Number(b.dataset.m); paintTimePicker(); } });
-  on("tp-apply",   "click", applyTimePicker);
-  on("tp-cancel",  "click", () => { closeTimePicker(); $("rem-time-display")?.focus(); });
-  on("tp-manual-apply", "click", () => {
-    const v = $("tp-manual-input")?.value.trim();
-    const m = v?.match(/^(\d{1,2})[:.](\d{1,2})$/);
-    if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return toast("Format HH:MM, misal 07:30", "warn");
-    tp.hour = Number(m[1]); tp.minute = Number(m[2]);
-    if ($("tp-manual-input")) $("tp-manual-input").value = "";
-    applyTimePicker();
-  });
-  document.addEventListener("click", (e) => { if (tp.open && !e.target.closest("#timepicker")) closeTimePicker(); });
-
-  on("reminder-form", "submit", (e) => {
-    e.preventDefault();
-    const err = $("reminder-error"); err?.classList.add("hidden");
-    const text = $("rem-text")?.value.trim(), time = $("rem-time")?.value;
-    if (!text) { if (err) { err.textContent = "Isi pengingat wajib diisi."; err.classList.remove("hidden"); } return; }
-    if (!/^\d{2}:\d{2}$/.test(time || "")) { if (err) { err.textContent = "Pilih waktu lewat pemilih."; err.classList.remove("hidden"); } return; }
-    S.reminders.push({ id: uid(), text, time });
-    save(); renderReminders();
-    e.target.reset();
-    if ($("rem-time")) $("rem-time").value = "";
-    if ($("rem-time-label")) $("rem-time-label").textContent = "Pilih waktu";
-    pop(550); addScore(10); toast("Pengingat disimpan! ⏰", "success");
-  });
-  on("reminder-list", "click", async (e) => {
-    const btn = e.target.closest('[data-act="rem-del"]'); if (!btn) return;
-    if (!await askConfirm("Hapus pengingat?", { title: "Hapus", confirmText: "Hapus", danger: true })) return;
-    S.reminders = S.reminders.filter((x) => x.id !== btn.dataset.id);
-    save(); renderReminders(); toast("Dihapus.");
-  });
-
-  bindTaskList("todo-list",  () => S.todos,  "todo",  renderTodos);
-  bindTaskList("dream-list", () => S.dreams, "dream", renderDreams);
-  on("todo-form",  "submit", (e) => {
-    e.preventDefault();
-    const text = $("todo-input")?.value.trim(); if (!text) return;
-    S.todos.push({ id: uid(), text, state: "active" });
-    save(); renderTodos(); e.target.reset(); pop(580);
-  });
-  on("dream-form", "submit", (e) => {
-    e.preventDefault();
-    const text = $("dream-input")?.value.trim(); if (!text) return;
-    S.dreams.push({ id: uid(), text, state: "active" });
-    save(); renderDreams(); e.target.reset(); pop(590); addScore(10);
-    toast("Impian ditambahkan! ✨", "success");
-  });
-
-  on("capsule-form", "submit", (e) => {
-    e.preventDefault();
-    const title = $("capsule-title")?.value.trim(), msg = $("capsule-msg")?.value.trim(), openDate = $("capsule-date")?.value;
-    if (!title || !msg || !openDate) return;
-    S.capsules.push({ id: uid(), title, msg, openDate });
-    save(); renderCapsules(); e.target.reset(); pop(620); launchConfetti(50);
-    toast("Kapsul waktu dikunci! 💌", "success");
-  });
-  on("capsule-grid", "click", async (e) => {
-    const btn = e.target.closest("[data-act]"); if (!btn) return;
-    const c = S.capsules.find((x) => x.id === btn.dataset.id); if (!c) return;
-    if (btn.dataset.act === "cap-edit") {
-      if ($("capsule-edit-id"))    $("capsule-edit-id").value    = c.id;
-      if ($("capsule-edit-title")) $("capsule-edit-title").value = c.title;
-      if ($("capsule-edit-date"))  $("capsule-edit-date").value  = c.openDate;
-      if ($("capsule-edit-msg"))   $("capsule-edit-msg").value   = c.msg;
-      openModal("capsule-modal");
+    const snap = await getDocs(query(collection(db, 'workspaces'), where('joinCode', '==', code), limit(1)));
+    if (snap.empty) return showAlert('Kode undangan tidak valid.');
+    const wsDoc = snap.docs[0], wsData = wsDoc.data(), uid = state.user.uid;
+    const myMemberRef = doc(db, 'workspaces', wsDoc.id, 'members', uid);
+    const existingMe = await getDoc(myMemberRef);
+    const myName = state.user.displayName || state.user.email.split('@')[0];
+    let justJoined = false;
+    if (existingMe.exists()) {
+      await setDoc(doc(db, 'users', uid), { workspaceIds: arrayUnion(wsDoc.id) }, { merge: true });
+      state.role = existingMe.data().role || 'worker';
+      state.workerName = existingMe.data().name || myName;
     } else {
-      if (!await askConfirm(`Hapus kapsul "${c.title}"?`, { title: "Hapus", confirmText: "Hapus", danger: true })) return;
-      S.capsules = S.capsules.filter((x) => x.id !== c.id);
-      save(); renderCapsules(); toast("Dihapus.");
+      const membersSnap = await getDocs(collection(db, 'workspaces', wsDoc.id, 'members'));
+      if (membersSnap.docs.filter(d => d.data().role === 'worker').length >= 20) return showAlert('Ruang kerja penuh (20 anggota).');
+      const batch = writeBatch(db);
+      batch.set(myMemberRef, { uid, email: state.user.email, name: myName, role: 'worker', division: 'Umum', joinedAt: serverTimestamp(), lastActive: serverTimestamp() });
+      batch.set(doc(db, 'users', uid), { workspaceIds: arrayUnion(wsDoc.id) }, { merge: true });
+      await batch.commit();
+      state.role = 'worker'; state.workerName = myName; justJoined = true;
     }
-  });
-  on("capsule-edit-form", "submit", (e) => {
-    e.preventDefault();
-    const c = S.capsules.find((x) => x.id === $("capsule-edit-id")?.value); if (!c) return;
-    c.title    = $("capsule-edit-title")?.value.trim();
-    c.openDate = $("capsule-edit-date")?.value;
-    c.msg      = $("capsule-edit-msg")?.value.trim();
-    save(); renderCapsules(); closeModal("capsule-modal"); pop(560);
-    toast("Diperbarui!", "success");
-  });
+    state.workspaceId = wsDoc.id; state.workspaceName = wsData.name;
+    if (justJoined) logActivity('join', `${state.workerName} bergabung ke ruang kerja`);
+    $('joinWorkspaceModal').classList.add('hidden');
+    $('joinWorkspaceForm').reset();
+    showWorkspaceView(); subscribeToWorkspace();
+  } catch (err) { await showAlert('Gagal bergabung: ' + err.message); }
+  finally { btn.disabled = false; btn.textContent = 'Gabung ruang kerja'; }
+}
+window.openWorkspace = async (workspaceId) => {
+  try {
+    const wsSnap = await getDoc(doc(db, 'workspaces', workspaceId));
+    if (!wsSnap.exists()) return showAlert('Ruang kerja tidak ditemukan.');
+    const memberSnap = await getDoc(doc(db, 'workspaces', workspaceId, 'members', state.user.uid));
+    if (!memberSnap.exists()) return showAlert('Anda bukan anggota ruang kerja ini.');
+    state.workspaceId = workspaceId;
+    state.workspaceName = wsSnap.data().name;
+    state.role = memberSnap.data().role;
+    state.workerName = memberSnap.data().name || state.user.displayName || 'User';
+    showWorkspaceView(); subscribeToWorkspace();
+  } catch (err) { await showAlert('Gagal membuka ruang kerja: ' + err.message); }
+};
+function backToDashboard() {
+  stopHeartbeat();
+  unsubscribers.forEach(u => u()); unsubscribers = [];
+  state.workspaceId = null; state.workspaceName = null; state.role = null;
+  state.members = []; state.tasks = []; state.divisions = [];
+  currentDetailId = null; activities = []; announcements = [];
+  showDashboardView();
+}
 
-  const player = $("audio-player"), vinyl = $("vinyl-disc");
-  if (player) {
-    const setPlaying = (on) => {
-      vinyl?.classList.toggle("spinning", on);
-      const b = $("vinyl-toggle"); if (b) { b.textContent = on ? "Jeda" : "Putar"; b.setAttribute("aria-pressed", String(on)); }
-    };
-    player.addEventListener("play",  () => setPlaying(true));
-    player.addEventListener("pause", () => setPlaying(false));
-    player.addEventListener("ended", () => setPlaying(false));
+// Langganan data Firestore
+function subscribeToWorkspace() {
+  unsubscribers.forEach(u => u()); unsubscribers = [];
+  const ws = state.workspaceId;
+  unsubscribers.push(onSnapshot(collection(db, 'workspaces', ws, 'members'), snap => {
+    state.members = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.joinedAt?.seconds || 0) - (b.joinedAt?.seconds || 0));
+    const me = state.members.find(m => m.id === state.user.uid);
+    if (me) {
+      state.workerName = me.name || state.workerName;
+      if (me.role !== state.role) { state.role = me.role; showWorkspaceView(); }
+    }
+    renderTasks();
+    if (!$('divisionManagementPanel').classList.contains('hidden')) renderDivisionManagement();
+    if (!$('teamPanel').classList.contains('hidden')) renderTeamPanel();
+    updateAssigneeSelect(); loadDailyGoal();
+  }));
+  unsubscribers.push(onSnapshot(collection(db, 'workspaces', ws, 'divisions'), snap => {
+    state.divisions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderDivisionOptions(); updateAssigneeSelect();
+    if (!$('divisionManagementPanel').classList.contains('hidden')) renderDivisionManagement();
+  }));
+  unsubscribers.push(onSnapshot(query(collection(db, 'workspaces', ws, 'tasks'), orderBy('createdAt', 'desc')), snap => {
+    state.tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    afterTasksUpdate(); renderTasks();
+  }));
+  unsubscribers.push(onSnapshot(query(collection(db, 'workspaces', ws, 'activities'), orderBy('at', 'desc'), limit(100)), snap => {
+    activities = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderActivities();
+  }, err => console.warn('Aktivitas gagal dimuat:', err)));
+  unsubscribers.push(onSnapshot(query(collection(db, 'workspaces', ws, 'announcements'), orderBy('createdAt', 'desc')), snap => {
+    announcements = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderAnnouncements();
+  }, err => console.warn('Pengumuman gagal dimuat:', err)));
+  unsubscribers.push(onSnapshot(doc(db, 'workspaces', ws), snap => {
+    if (snap.exists()) { state.driveLink = snap.data().driveLink || ''; updateDriveStatus(); }
+  }));
+}
+
+// Penerima tugas dan tautan Drive
+function updateAssigneeSelect() {
+  const select = $('taskAssignee'); if (!select) return;
+  const workers = state.members.filter(m => m.role === 'worker');
+  const fa = $('filterAssignee');
+  if (fa) {
+    const pv = fa.value;
+    fa.innerHTML = '<option value="">Semua anggota</option>' + workers.map(m => `<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</option>`).join('');
+    fa.value = pv;
+    fa.closest('.select-shell')?.classList.toggle('hidden', state.role !== 'mentor');
   }
-  on("vinyl-toggle", "click", () => {
-    if (!player) return;
-    if (player.paused) { if (player.src) player.play().catch(() => showAudioError("Pilih lagu.")); }
-    else player.pause();
+  const prev = select.value;
+  if (!workers.length) { select.innerHTML = '<option value="">Belum ada anggota</option>'; return; }
+  const divNames = [...new Set(['Umum', ...state.divisions.map(d => d.name)])];
+  const cnt = d => workers.filter(m => (m.division || 'Umum') === d).length;
+  let html = `<option value="__all">Semua Member (${workers.length})</option><optgroup label="Per Divisi">`;
+  divNames.forEach(d => { html += `<option value="__div:${escapeHtml(d)}" ${cnt(d) ? '' : 'disabled'}>Divisi ${escapeHtml(d)} (${cnt(d)})</option>`; });
+  html += '</optgroup><optgroup label="Per Individu">';
+  workers.forEach(m => { html += `<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)} · ${escapeHtml(m.division || 'Umum')}</option>`; });
+  html += '</optgroup>';
+  select.innerHTML = html;
+  select.value = (prev && [...select.options].some(o => o.value === prev)) ? prev : '__all';
+  select.dispatchEvent(new Event('change'));
+}
+function updateDriveStatus(liveValue = null) {
+  const statusEl = $('driveStatusText'), inputEl = $('driveLinkInput');
+  if (!statusEl) return;
+  const currentVal = liveValue !== null ? liveValue.trim() : (state.driveLink || '').trim();
+  if (!currentVal) { statusEl.textContent = 'Belum ada folder yang tertaut.'; statusEl.classList.remove('linked'); }
+  else {
+    const href = safeUrl(currentVal);
+    statusEl.innerHTML = href
+      ? `Folder tertaut: <a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline">${escapeHtml(currentVal)}</a>`
+      : 'Tautan tidak valid: harus diawali http:// atau https://';
+    statusEl.classList.toggle('linked', !!href);
+  }
+  if (liveValue === null && inputEl && document.activeElement !== inputEl) inputEl.value = (state.driveLink || '').trim();
+}
+function renderDivisionOptions() {
+  const s = $('editMemberDivision'); if (!s) return;
+  const prev = s.value;
+  s.innerHTML = '<option value="Umum">Umum</option>' + state.divisions.map(d => `<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)}</option>`).join('');
+  if (prev && [...s.options].some(o => o.value === prev)) s.value = prev;
+  s.dispatchEvent(new Event('change'));
+}
+
+// Tugas
+function applyTaskFilters(list) {
+  const q = ($('taskSearch')?.value || '').trim().toLowerCase();
+  const st = $('filterStatus')?.value, df = $('filterDifficulty')?.value, as = $('filterAssignee')?.value;
+  return list.filter(t => {
+    if (q && !((t.title || '') + ' ' + (t.desc || '')).toLowerCase().includes(q)) return false;
+    if (st && t.status !== st) return false;
+    if (df && (t.difficulty || 'sedang').toLowerCase() !== df) return false;
+    if (as && t.assignee !== as) return false;
+    return true;
   });
-  on("song-form", "submit", (e) => {
+}
+const subProgress = t => {
+  const s = t.subtasks || []; if (!s.length) return null;
+  const d = s.filter(x => x.done).length;
+  return { done: d, total: s.length, pct: Math.round(d / s.length * 100) };
+};
+const progressBar = p => `<div class="progress-row"><div class="progress-track"><div class="progress-fill ${p.pct === 100 ? 'full' : ''}" style="width:${p.pct}%"></div></div><span>${p.pct}%</span></div>`;
+function renderTasks() {
+  const tbody = $('taskTableBody'); if (!tbody) return;
+  let list = state.role === 'worker' ? state.tasks.filter(t => t.assignee === state.workerName) : [...state.tasks];
+  renderDeadlineBanner(list);
+  list = applyTaskFilters(list);
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="6" class="table-empty">Belum ada tugas dalam daftar.</td></tr>'; return; }
+  tbody.innerHTML = list.map(task => {
+    const lv = dueLevel(task), prog = subProgress(task);
+    const overdue = task.endDate && new Date(task.endDate + 'T23:59:59') < new Date() && task.status !== 'done';
+    const [statusText, statusClass] = statusInfo(task);
+    const shortDesc = task.desc ? (task.desc.length > 60 ? task.desc.slice(0, 60) + '…' : task.desc) : '-';
+    const diff = (task.difficulty || 'sedang').toLowerCase();
+    return `<tr class="${lv ? 'row-due-' + lv : ''}" onclick="openTaskDetailModal('${task.id}')">
+      <td data-label="Tugas"><div><button type="button" class="row-link">${escapeHtml(task.title)}</button>${(task.attachments || []).length ? `<span class="clip-count" title="Lampiran">Lampiran ${task.attachments.length}</span>` : ''}</div>${prog ? progressBar(prog) : ''}</td>
+      <td data-label="Instruksi" class="task-desc-cell"><div class="task-desc" title="${escapeHtml(task.desc || '')}">${escapeHtml(shortDesc)}</div></td>
+      <td data-label="Anggota" class="cell-sub">${escapeHtml(task.assignee)}</td>
+      <td data-label="Kesulitan" class="col-center"><span class="stat-pill diff-${diff}">${diff.charAt(0).toUpperCase() + diff.slice(1)}</span></td>
+      <td data-label="Status" class="col-center"><span class="stat-pill ${statusClass}">${statusText}${overdue ? ' · Terlambat' : ''}</span></td>
+      <td data-label="Tenggat" class="cell-sub${overdue ? ' cell-late' : ''}">${escapeHtml(task.endDate || '-')}${lv ? `<span class="due-badge due-${lv}">${dueLabel(task)}</span>` : ''}</td>
+    </tr>`;
+  }).join('');
+}
+function renderDeadlineBanner(tasks) {
+  const el = $('deadlineBanner'); if (!el) return;
+  const o = tasks.filter(t => dueLevel(t) === 'overdue').length;
+  const u = tasks.filter(t => ['urgent', 'soon'].includes(dueLevel(t))).length;
+  if (!o && !u) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  el.className = 'deadline-banner ' + (o ? 'due-overdue' : 'due-urgent');
+  el.textContent = [o ? `${o} tugas melewati tenggat` : '', u ? `${u} tugas mendekati tenggat (3 hari ke depan)` : ''].filter(Boolean).join(' dan ');
+}
+
+// Detail tugas
+const taskRef = id => doc(db, 'workspaces', state.workspaceId, 'tasks', id);
+window.openTaskDetailModal = (taskId) => {
+  const task = state.tasks.find(t => t.id === taskId); if (!task) return;
+  $('detailTaskTitle').textContent = task.title;
+  $('detailTaskAssignee').textContent = task.assignee;
+  const lv = dueLevel(task);
+  $('detailTaskDates').innerHTML = `${escapeHtml(task.startDate || '?')} s/d ${escapeHtml(task.endDate || '?')}` + (lv ? `<span class="due-badge due-${lv}">${dueLabel(task)}</span>` : '');
+  $('detailTaskDesc').textContent = task.desc || 'Tidak ada instruksi tambahan.';
+  const [statusText, statusClass] = statusInfo(task);
+  $('detailTaskStatus').className = `stat-pill ${statusClass}`;
+  $('detailTaskStatus').textContent = statusText;
+  const diff = (task.difficulty || 'sedang').toLowerCase();
+  $('detailTaskDifficulty').className = `stat-pill diff-${diff}`;
+  $('detailTaskDifficulty').textContent = diff.charAt(0).toUpperCase() + diff.slice(1);
+  const driveHref = safeUrl(task.reportFileLink || (task.driveSource === 'workspace' ? state.driveLink : ''));
+  $('detailTaskDrive').innerHTML = driveHref
+    ? `<a href="${escapeHtml(driveHref)}" target="_blank" rel="noopener noreferrer" class="btn-drive-modal">Buka tautan Drive</a>`
+    : '<span class="status-text">Belum ada tautan</span>';
+  const revBox = $('detailRevisionBox');
+  if (task.revisionNotes) { revBox.classList.remove('hidden'); $('detailRevisionNotes').textContent = task.revisionNotes; }
+  else revBox.classList.add('hidden');
+  const history = task.history || [];
+  const label = { laporan: 'Laporan', revisi: 'Revisi', selesai: 'Divalidasi' };
+  $('detailHistoryList').innerHTML = history.length
+    ? [...history].sort((a, b) => b.at - a.at).map(h => `<div class="hist-item hist-${escapeHtml(h.type)}"><div class="hist-head"><strong>${label[h.type] || h.type}</strong> · ${escapeHtml(h.by || '')} <span>${new Date(h.at).toLocaleString('id-ID')}</span></div>${h.text ? `<div style="margin-top:4px">${escapeHtml(h.text)}</div>` : ''}</div>`).join('')
+    : '<p class="empty-hint">Belum ada riwayat.</p>';
+
+  const isWorker = state.role === 'worker' && task.assignee === state.workerName;
+  const isLead = state.role === 'mentor';
+  if (isWorker && task.status === 'todo' && !autoStarted.has(task.id)) {
+    autoStarted.add(task.id);
+    updateDoc(taskRef(task.id), { status: 'progress', updatedAt: serverTimestamp() }).then(() => {
+      logActivity('start', `${state.workerName} mulai mengerjakan "${task.title}"`, task.id);
+      notify(mentorUids(), { kind: 'start', title: `${state.workerName} mulai mengerjakan`, body: task.title, taskId: task.id });
+      toast('Tugas dimulai', 'info');
+    }).catch(() => autoStarted.delete(task.id));
+  }
+  $('detailReportBox').classList.toggle('hidden', !(isWorker && ['todo', 'progress'].includes(task.status)));
+  $('detailReviewBox').classList.toggle('hidden', !(isLead && task.status === 'review'));
+  $('reportLink').value = task.reportFileLink || '';
+  $('reportNotes').value = ''; $('reviewNotes').value = '';
+  $('reportError').classList.add('hidden'); $('reviewError').classList.add('hidden');
+
+  const ac = $('detailActionButtons');
+  if (isWorker && ['todo', 'progress'].includes(task.status)) {
+    ac.innerHTML = '<button class="btn-sm btn-solid" onclick="submitReport()">Kirim laporan</button>';
+  } else if (isLead && task.status === 'review') {
+    ac.innerHTML = '<div class="action-group"><button class="btn-sm btn-warning" onclick="submitReview(true)">Revisi</button><button class="btn-sm btn-success" onclick="submitReview(false)">Selesai</button></div>';
+  } else if (isLead) {
+    ac.innerHTML = `<div class="action-group"><button class="btn-sm btn-ghost" onclick="openEditTaskModal('${task.id}')">Edit</button><button class="btn-sm btn-warning" onclick="deleteTask('${task.id}')">Hapus</button></div>`;
+  } else ac.innerHTML = '';
+
+  currentDetailId = task.id;
+  renderTaskExtras(task);
+  $('taskDetailModal').classList.remove('hidden');
+};
+window.closeTaskDetailModal = () => { $('taskDetailModal').classList.add('hidden'); currentDetailId = null; };
+
+window.submitReport = async () => {
+  const t = state.tasks.find(x => x.id === currentDetailId);
+  if (!t || !(state.role === 'worker' && t.assignee === state.workerName)) return;
+  const link = safeUrl($('reportLink').value), notes = $('reportNotes').value.trim(), err = $('reportError');
+  if (!link) { err.textContent = 'Tautan wajib diisi dan harus diawali http:// atau https://'; return err.classList.remove('hidden'); }
+  err.classList.add('hidden');
+  try {
+    await updateDoc(taskRef(t.id), {
+      status: 'review', reportFileLink: link, reportNotes: notes, revisionNotes: '',
+      history: arrayUnion({ type: 'laporan', by: state.workerName, text: notes, link, at: Date.now() }),
+      updatedAt: serverTimestamp()
+    });
+    logActivity('report', `${state.workerName} mengirim laporan "${t.title}"`, t.id);
+    notify(mentorUids(), { kind: 'report', title: `${state.workerName} mengirim laporan`, body: t.title, taskId: t.id });
+    toast('Laporan terkirim ke Lead', 'success');
+    window.closeTaskDetailModal();
+  } catch (e) { err.textContent = 'Gagal: ' + e.message; err.classList.remove('hidden'); }
+};
+window.submitReview = async (isRevision) => {
+  const t = state.tasks.find(x => x.id === currentDetailId);
+  if (!t || state.role !== 'mentor' || t.status !== 'review') return;
+  const notes = $('reviewNotes').value.trim(), err = $('reviewError');
+  if (isRevision && !notes) { err.textContent = 'Catatan wajib diisi untuk revisi.'; return err.classList.remove('hidden'); }
+  err.classList.add('hidden');
+  const entry = arrayUnion({ type: isRevision ? 'revisi' : 'selesai', by: state.workerName, text: notes, at: Date.now() });
+  try {
+    await updateDoc(taskRef(t.id), isRevision
+      ? { status: 'progress', revisionNotes: notes, history: entry, updatedAt: serverTimestamp() }
+      : { status: 'done', revisionNotes: '', history: entry, updatedAt: serverTimestamp() });
+    logActivity(isRevision ? 'revision' : 'done', `${state.workerName} ${isRevision ? 'meminta revisi' : 'menyelesaikan'} "${t.title}"`, t.id);
+    notify([memberUid(t.assignee)], { kind: isRevision ? 'revision' : 'done', title: isRevision ? 'Tugas perlu revisi' : 'Tugas dinyatakan selesai', body: t.title, taskId: t.id });
+    toast(isRevision ? 'Catatan revisi dikirim' : 'Tugas divalidasi selesai', 'success');
+    window.closeTaskDetailModal();
+  } catch (e) { err.textContent = 'Gagal: ' + e.message; err.classList.remove('hidden'); }
+};
+window.deleteTask = async (id) => {
+  if (state.role !== 'mentor') return;
+  const t = state.tasks.find(x => x.id === id);
+  if (!await askConfirm(`Hapus tugas "${t?.title || ''}"? Tindakan ini tidak bisa dibatalkan.`, { title: 'Hapus tugas', confirmText: 'Hapus', danger: true })) return;
+  try {
+    await deleteDoc(taskRef(id));
+    if (t) logActivity('delete', `${state.workerName} menghapus tugas "${t.title}"`);
+    window.closeTaskDetailModal();
+    toast('Tugas dihapus', 'info');
+  } catch (err) { await showAlert('Gagal: ' + err.message); }
+};
+window.openEditTaskModal = (id) => {
+  const t = state.tasks.find(x => x.id === id); if (!t || state.role !== 'mentor') return;
+  $('editTaskId').value = t.id;
+  $('editTaskTitleInput').value = t.title;
+  $('editTaskDescInput').value = t.desc || '';
+  window.closeTaskDetailModal();
+  $('editTaskModal').classList.remove('hidden');
+};
+
+// Target harian
+function loadDailyGoal() {
+  const me = state.members.find(m => m.id === state.user?.uid);
+  const d = $('dailyGoalDisplay'); if (!d) return;
+  d.textContent = (me && me.goalDate === localDate() && me.dailyGoal) ? `${me.dailyGoal}` : '';
+}
+function setDefaultDates() {
+  const s = $('startDate'), e = $('endDate');
+  if (s) s.value = localDate();
+  if (e) e.value = localDate(new Date(Date.now() + 7 * 864e5));
+}
+
+// Divisi dan anggota
+function renderDivisionManagement() {
+  const c = $('divisionListContainer');
+  if (c) {
+    c.innerHTML = state.divisions.length ? state.divisions.map(d => {
+      const n = state.members.filter(m => m.division === d.name).length;
+      return `<div class="div-row"><div><h3>${escapeHtml(d.name)}</h3><p>${escapeHtml(d.desc || 'Tidak ada deskripsi.')}</p></div><div class="div-row-side"><span class="div-count">${n} anggota</span><button class="btn-sm btn-warning" onclick="deleteDivision('${d.id}')">Hapus</button></div></div>`;
+    }).join('') : '<p class="empty-hint">Belum ada divisi terdaftar.</p>';
+  }
+  const p = $('memberPresenceList');
+  if (p) p.innerHTML = renderMembersGrid(state.members);
+  const tb = $('memberSettingsTableBody');
+  if (tb) {
+    tb.innerHTML = state.members.map(m => `<tr>
+      <td data-label="Nama"><strong>${escapeHtml(m.name)}</strong></td>
+      <td data-label="Email" class="cell-sub">${escapeHtml(m.email)}</td>
+      <td data-label="Peran" class="col-center"><span class="role-badge ${m.role}">${m.role === 'mentor' ? 'Lead' : 'Member'}</span></td>
+      <td data-label="Divisi" class="col-divisi">${escapeHtml(m.division || 'Umum')}</td>
+      <td data-label="Aksi" class="col-center"><div><button class="btn-sm" onclick="openEditMemberModal('${m.id}')">Edit</button>${m.id !== state.user.uid ? `<button class="btn-sm btn-warning" onclick="removeMember('${m.id}')">Keluarkan</button>` : ''}</div></td>
+    </tr>`).join('');
+  }
+}
+function renderTeamPanel() { const el = $('teamMembersList'); if (el) el.innerHTML = renderMembersGrid(state.members); }
+function renderMembersGrid(members) {
+  if (!members.length) return '<p class="empty-hint">Belum ada anggota.</p>';
+  return members.map(m => {
+    const initials = (m.name || '?').split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map(x => x[0].toUpperCase()).join('');
+    const online = isOnline(m.lastActive);
+    return `<div class="team-member-card">
+      <div class="team-avatar">${escapeHtml(initials)}<span class="presence-dot ${online ? 'online' : ''}"></span></div>
+      <div class="team-info">
+        <div class="name-row"><span class="name">${escapeHtml(m.name)}</span></div>
+        <div class="meta"><span class="role-badge ${m.role}" style="font-size:.6rem;padding:1px 6px">${m.role === 'mentor' ? 'Lead' : 'Member'}</span> · ${escapeHtml(m.division || 'Umum')}</div>
+        <div class="meta last-active">${online ? 'Aktif sekarang' : 'Terakhir aktif: ' + timeAgo(m.lastActive)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+window.deleteDivision = async (divId) => {
+  const div = state.divisions.find(d => d.id === divId);
+  if (!await askConfirm(`Hapus divisi "${div?.name || ''}"? Anggotanya dipindahkan ke "Umum".`, { title: 'Hapus divisi', confirmText: 'Hapus', danger: true })) return;
+  try {
+    const batch = writeBatch(db);
+    if (div) state.members.filter(m => m.division === div.name).forEach(m => batch.update(doc(db, 'workspaces', state.workspaceId, 'members', m.id), { division: 'Umum' }));
+    batch.delete(doc(db, 'workspaces', state.workspaceId, 'divisions', divId));
+    await batch.commit();
+    toast('Divisi dihapus', 'info');
+  } catch (err) { await showAlert('Gagal: ' + err.message); }
+};
+window.openEditMemberModal = (memberId) => {
+  const m = state.members.find(x => x.id === memberId); if (!m) return;
+  $('editMemberId').value = m.id;
+  $('editMemberNameDisplay').value = m.name;
+  $('editMemberRole').value = m.role; $('editMemberRole').dispatchEvent(new Event('change'));
+  renderDivisionOptions();
+  $('editMemberDivision').value = m.division || 'Umum'; $('editMemberDivision').dispatchEvent(new Event('change'));
+  $('editMemberModal').classList.remove('hidden');
+};
+window.removeMember = async (memberId) => {
+  const m = state.members.find(x => x.id === memberId);
+  if (!m || memberId === state.user.uid) return;
+  if (!await askConfirm(`Keluarkan ${m.name} dari ruang kerja ini?`, { title: 'Keluarkan anggota', confirmText: 'Keluarkan', danger: true })) return;
+  try { await deleteDoc(doc(db, 'workspaces', state.workspaceId, 'members', memberId)); toast('Anggota dikeluarkan', 'info'); }
+  catch (err) { await showAlert('Gagal: ' + err.message); }
+};
+async function leaveWorkspace() {
+  if (state.role === 'mentor' && state.members.filter(m => m.role === 'mentor').length <= 1) return showAlert('Anda mentor terakhir. Promosikan anggota lain atau hapus ruang kerja.');
+  if (!await askConfirm('Keluar dari ruang kerja ini?', { title: 'Keluar ruang kerja', confirmText: 'Keluar', danger: true })) return;
+  try {
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'workspaces', state.workspaceId, 'members', state.user.uid));
+    batch.set(doc(db, 'users', state.user.uid), { workspaceIds: arrayRemove(state.workspaceId) }, { merge: true });
+    await batch.commit();
+    backToDashboard();
+  } catch (err) { await showAlert('Gagal: ' + err.message); }
+}
+async function changeJoinCode() {
+  const input = await askText({
+    title: 'Ganti kode undangan',
+    message: 'Masukkan 6 huruf/angka, atau kosongkan untuk membuat kode acak.',
+    label: 'Kode undangan baru', placeholder: 'ABC123', code: true, confirmText: 'Ganti kode',
+    validate: v => (!v.trim() || /^[A-Za-z0-9]{6}$/.test(v.trim())) ? '' : 'Kode harus tepat 6 huruf/angka.'
+  });
+  if (input === null) return;
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const code = (input.trim() || Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')).toUpperCase();
+  try {
+    if (!(await getDocs(query(collection(db, 'workspaces'), where('joinCode', '==', code), limit(1)))).empty) return showAlert('Kode sudah dipakai ruang lain.');
+    await updateDoc(doc(db, 'workspaces', state.workspaceId), { joinCode: code });
+    await showAlert(`Kode undangan baru: ${code}`, 'Kode diganti');
+  } catch (err) { await showAlert('Gagal: ' + err.message); }
+}
+async function deleteWorkspace() {
+  const typed = await askText({
+    title: 'Hapus ruang kerja',
+    message: `Semua tugas, divisi, anggota, aktivitas, dan pengumuman akan hilang permanen.\n\nKetik "${state.workspaceName}" untuk konfirmasi.`,
+    label: 'Nama ruang kerja', placeholder: state.workspaceName, confirmText: 'Hapus permanen', danger: true,
+    validate: v => v === state.workspaceName ? '' : 'Nama tidak cocok.'
+  });
+  if (typed === null) return;
+  try {
+    const refs = [];
+    for (const sub of ['tasks', 'divisions', 'members', 'activities', 'announcements']) {
+      (await getDocs(collection(db, 'workspaces', state.workspaceId, sub))).forEach(d => refs.push(d.ref));
+    }
+    refs.push(doc(db, 'workspaces', state.workspaceId));
+    unsubscribers.forEach(u => u()); unsubscribers = [];
+    for (let i = 0; i < refs.length; i += 400) {
+      const batch = writeBatch(db);
+      refs.slice(i, i + 400).forEach(r => batch.delete(r));
+      await batch.commit();
+    }
+    await setDoc(doc(db, 'users', state.user.uid), { workspaceIds: arrayRemove(state.workspaceId) }, { merge: true });
+    backToDashboard();
+    toast('Ruang kerja dihapus', 'info');
+  } catch (err) { await showAlert('Gagal: ' + err.message); }
+}
+async function renameUser(newName, oldName) {
+  await updateProfile(auth.currentUser, { displayName: newName });
+  const snap = await getDoc(doc(db, 'users', state.user.uid));
+  const ids = snap.exists() ? (snap.data().workspaceIds || []) : [];
+  await setDoc(doc(db, 'users', state.user.uid), { displayName: newName }, { merge: true });
+  for (const id of ids) {
+    const mRef = doc(db, 'workspaces', id, 'members', state.user.uid);
+    if (!(await getDoc(mRef)).exists()) continue;
+    const tasks = await getDocs(query(collection(db, 'workspaces', id, 'tasks'), where('assignee', '==', oldName)));
+    const batch = writeBatch(db);
+    batch.update(mRef, { name: newName });
+    tasks.forEach(t => batch.update(t.ref, { assignee: newName }));
+    await batch.commit();
+  }
+  state.user = auth.currentUser;
+  $('topbarUserName').textContent = newName;
+}
+
+// Aktivitas dan notifikasi
+const actIcon = id => `<svg class="ic" aria-hidden="true"><use href="#i-${id}"/></svg>`;
+const ACT_SVG = {
+  task: actIcon('plus'), start: actIcon('play'), report: actIcon('upload'), revision: actIcon('loop'),
+  done: actIcon('check'), reopen: actIcon('loop'), delete: actIcon('trash'), file: actIcon('clip'),
+  join: actIcon('enter'), announce: actIcon('horn'), subtask: actIcon('list')
+};
+function logActivity(type, text, taskId = null) {
+  if (!state.workspaceId) return;
+  addDoc(collection(db, 'workspaces', state.workspaceId, 'activities'), { type, text, taskId, by: state.workerName || '', uid: state.user.uid, at: serverTimestamp() })
+    .catch(e => console.warn('Aktivitas gagal dicatat:', e));
+}
+function renderActivities() {
+  const el = $('activityList'); if (!el) return;
+  el.innerHTML = activities.length
+    ? activities.map(a => `<div class="act-item act-${escapeHtml(a.type)}"><span class="act-icon">${ACT_SVG[a.type] || actIcon('dot')}</span><div><div>${escapeHtml(a.text)}</div><span class="act-time">${fmtTime(a.at)}</span></div></div>`).join('')
+    : '<p class="empty-hint">Belum ada aktivitas.</p>';
+}
+const memberUid = name => state.members.find(m => m.name === name)?.id;
+const mentorUids = () => state.members.filter(m => m.role === 'mentor').map(m => m.id);
+function notify(uids, data) {
+  [...new Set(uids)].filter(u => u && u !== state.user.uid).forEach(uid => {
+    addDoc(collection(db, 'users', uid, 'notifications'), { ...data, workspaceId: state.workspaceId, workspaceName: state.workspaceName, read: false, createdAt: serverTimestamp() })
+      .catch(e => console.warn('Notifikasi gagal dikirim:', e));
+  });
+}
+function startNotifications() {
+  stopNotifications();
+  notifUnsub = onSnapshot(query(collection(db, 'users', state.user.uid, 'notifications'), orderBy('createdAt', 'desc'), limit(300)), snap => {
+    notifications = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderNotifBadge();
+    if ($('dashboardNotificationsList')) renderDashboardNotifications();
+    if ($('dashboardNotificationsListFull') && !$('notificationsPanel')?.classList.contains('hidden')) renderFullNotifications();
+  }, err => console.warn('Notifikasi gagal dimuat:', err));
+}
+function stopNotifications() {
+  if (notifUnsub) { notifUnsub(); notifUnsub = null; }
+  notifications = [];
+  renderNotifBadge();
+}
+function renderNotifBadge() {
+  const unread = notifications.filter(n => !n.read).length;
+  document.querySelectorAll('.nav-badge').forEach(b => {
+    if (!unread) {
+      b.classList.add('hidden');
+      b.textContent = '';
+      return;
+    }
+    b.classList.remove('hidden');
+    b.textContent = unread >= 100 ? '99+' : String(unread);
+  });
+  const menu = $('notificationsNavBtn');
+  if (menu) {
+    menu.setAttribute('aria-label', unread
+      ? `Notifikasi, ${unread >= 100 ? '99+' : unread} belum dibaca`
+      : 'Notifikasi');
+  }
+  const top = $('notificationsNavBtnTop');
+  if (top) {
+    top.setAttribute('aria-label', unread
+      ? `Notifikasi, ${unread >= 100 ? '99+' : unread} belum dibaca`
+      : 'Notifikasi');
+  }
+}
+async function markAllRead() {
+  const un = notifications.filter(n => !n.read); if (!un.length) return;
+  const b = writeBatch(db);
+  un.forEach(n => b.update(doc(db, 'users', state.user.uid, 'notifications', n.id), { read: true }));
+  try {
+    await b.commit();
+    notifications.forEach(n => { n.read = true; });
+    renderNotifBadge();
+    toast('Semua notifikasi dibaca', 'success');
+  } catch (err) { await showAlert('Gagal: ' + err.message); }
+}
+
+// Sub-tugas dan lampiran
+const parseSubtasks = text => text.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 30).map(x => ({ id: newId(), text: x.slice(0, 120), done: false }));
+const canEditTask = t => state.role === 'mentor' || (state.role === 'worker' && t.assignee === state.workerName);
+window.toggleSubtask = async (taskId, subId, checked) => {
+  const t = state.tasks.find(x => x.id === taskId); if (!t || !canEditTask(t)) return;
+  const before = subProgress(t);
+  const subtasks = (t.subtasks || []).map(s => s.id === subId ? { ...s, done: checked } : s);
+  try {
+    await updateDoc(taskRef(taskId), { subtasks, updatedAt: serverTimestamp() });
+    if (checked && subtasks.every(s => s.done) && before && before.pct < 100) logActivity('subtask', `${state.workerName} menyelesaikan semua sub-tugas "${t.title}"`, taskId);
+  } catch (err) { await showAlert('Gagal: ' + err.message); }
+};
+window.deleteSubtask = async (taskId, subId) => {
+  const t = state.tasks.find(x => x.id === taskId); if (!t || state.role !== 'mentor') return;
+  try { await updateDoc(taskRef(taskId), { subtasks: (t.subtasks || []).filter(s => s.id !== subId), updatedAt: serverTimestamp() }); }
+  catch (err) { await showAlert('Gagal: ' + err.message); }
+};
+async function addSubtaskFromModal() {
+  const t = state.tasks.find(x => x.id === currentDetailId);
+  const input = $('subtaskInput'); const text = input.value.trim();
+  if (!t || !text || state.role !== 'mentor') return;
+  if ((t.subtasks || []).length >= 30) return showAlert('Maksimal 30 sub-tugas per tugas.');
+  try {
+    await updateDoc(taskRef(t.id), { subtasks: [...(t.subtasks || []), { id: newId(), text: text.slice(0, 120), done: false }], updatedAt: serverTimestamp() });
+    input.value = '';
+  } catch (err) { await showAlert('Gagal: ' + err.message); }
+}
+function renderTaskExtras(task) {
+  const isLead = state.role === 'mentor', canEdit = canEditTask(task);
+  const subs = task.subtasks || [], p = subProgress(task);
+  $('detailSubtaskBox').classList.toggle('hidden', !subs.length && !isLead);
+  $('detailProgressFill').style.width = (p ? p.pct : 0) + '%';
+  $('detailProgressFill').classList.toggle('full', !!p && p.pct === 100);
+  $('detailProgressText').textContent = p ? `${p.done}/${p.total} · ${p.pct}%` : '0%';
+  $('detailSubtaskAdd').classList.toggle('hidden', !isLead);
+  $('detailSubtaskList').innerHTML = subs.length
+    ? subs.map(s => `<label class="subtask-item ${s.done ? 'done' : ''}"><input type="checkbox" ${s.done ? 'checked' : ''} ${canEdit ? '' : 'disabled'} onchange="toggleSubtask('${task.id}','${s.id}',this.checked)" /><span>${escapeHtml(s.text)}</span>${isLead ? `<button type="button" class="icon-del" aria-label="Hapus sub-tugas" onclick="event.preventDefault();deleteSubtask('${task.id}','${s.id}')"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>` : ''}</label>`).join('')
+    : '<p class="empty-hint">Belum ada sub-tugas.</p>';
+  const files = task.attachments || [];
+  $('attachUploader').classList.toggle('hidden', !canEdit);
+  $('detailAttachList').innerHTML = files.length ? files.map(f => {
+    const href = safeUrl(f.url), canDel = isLead || f.uid === state.user.uid;
+    return `<div class="attach-item"><div class="attach-meta"><a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.name)}</a><small>${escapeHtml(f.by || '')} · ${fmtTime(f.at)}</small></div>${canDel ? `<button type="button" class="icon-del" aria-label="Hapus lampiran" onclick="deleteAttachment('${task.id}','${f.id}')"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>` : ''}</div>`;
+  }).join('') : '<p class="empty-hint">Belum ada lampiran.</p>';
+}
+function afterTasksUpdate() {
+  renderCalendar();
+  if (currentDetailId && !$('taskDetailModal').classList.contains('hidden')) {
+    if (state.tasks.some(t => t.id === currentDetailId)) window.openTaskDetailModal(currentDetailId);
+    else window.closeTaskDetailModal();
+  }
+}
+async function addAttachmentLink() {
+  const t = state.tasks.find(x => x.id === currentDetailId); if (!t || !canEditTask(t)) return;
+  const url = safeUrl($('attachUrl').value);
+  if (!url) return showAlert('Tautan harus diawali http:// atau https://');
+  if ((t.attachments || []).length >= 20) return showAlert('Maksimal 20 lampiran per tugas.');
+  const name = ($('attachName').value.trim() || new URL(url).hostname).slice(0, 80);
+  try {
+    await updateDoc(taskRef(t.id), { attachments: arrayUnion({ id: newId(), name, url, by: state.workerName, uid: state.user.uid, at: Date.now() }), updatedAt: serverTimestamp() });
+    $('attachUrl').value = ''; $('attachName').value = '';
+    logActivity('file', `${state.workerName} menambahkan lampiran "${name}" pada "${t.title}"`, t.id);
+    notify(state.role === 'mentor' ? [memberUid(t.assignee)] : mentorUids(), { kind: 'file', title: 'Lampiran baru', body: `${name} · ${t.title}`, taskId: t.id });
+  } catch (err) { await showAlert('Gagal: ' + err.message); }
+}
+window.deleteAttachment = async (taskId, fid) => {
+  const t = state.tasks.find(x => x.id === taskId);
+  const f = (t?.attachments || []).find(x => x.id === fid); if (!f) return;
+  if (!(state.role === 'mentor' || f.uid === state.user.uid)) return;
+  if (!await askConfirm(`Hapus lampiran "${f.name}"?`, { title: 'Hapus lampiran', confirmText: 'Hapus', danger: true })) return;
+  try { await updateDoc(taskRef(taskId), { attachments: arrayRemove(f), updatedAt: serverTimestamp() }); }
+  catch (err) { await showAlert('Gagal: ' + err.message); }
+};
+
+// Kalender
+let calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1), calExpanded = null;
+const chipClass = t => t.status === 'done' ? 'chip-done' : ({ overdue: 'due-overdue', urgent: 'due-urgent', soon: 'due-soon' }[dueLevel(t)] || 'chip-normal');
+window.expandCalDay = k => { calExpanded = calExpanded === k ? null : k; renderCalendar(); };
+function renderCalendar() {
+  const grid = $('calGrid');
+  if (!grid || $('calendarPanel').classList.contains('hidden')) return;
+  const y = calMonth.getFullYear(), m = calMonth.getMonth(), today = localDate();
+  $('calTitle').textContent = calMonth.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  const offset = (new Date(y, m, 1).getDay() + 6) % 7, days = new Date(y, m + 1, 0).getDate();
+  const tasks = (state.role === 'worker' ? state.tasks.filter(t => t.assignee === state.workerName) : state.tasks).filter(t => t.endDate);
+  const byDay = {}; tasks.forEach(t => (byDay[t.endDate] = byDay[t.endDate] || []).push(t));
+  let html = '<div class="cal-cell empty"></div>'.repeat(offset);
+  for (let d = 1; d <= days; d++) {
+    const key = localDate(new Date(y, m, d)), list = byDay[key] || [], max = key === calExpanded ? 99 : 3;
+    html += `<div class="cal-cell ${key === today ? 'today' : ''}"><span class="cal-day">${d}</span>`
+      + list.slice(0, max).map(t => `<button type="button" class="cal-chip ${chipClass(t)}" onclick="openTaskDetailModal('${t.id}')" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</button>`).join('')
+      + (list.length > 3 ? `<button type="button" class="cal-more" onclick="expandCalDay('${key}')">${key === calExpanded ? 'Ringkas' : `+${list.length - 3} lagi`}</button>` : '')
+      + '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+// Pengumuman
+function renderAnnouncements() {
+  const el = $('announceList'); if (!el) return;
+  const isLead = state.role === 'mentor';
+  const list = [...announcements].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  el.innerHTML = list.length ? list.map(a => `<article class="announce-item ${a.pinned ? 'pinned' : ''}">
+    <div class="announce-head"><h3>${a.pinned ? 'Disematkan: ' : ''}${escapeHtml(a.title)}</h3>
+    ${isLead ? `<div class="announce-actions"><button type="button" class="btn-sm btn-ghost" onclick="togglePinAnnouncement('${a.id}')">${a.pinned ? 'Lepas pin' : 'Sematkan'}</button><button type="button" class="btn-sm btn-ghost" onclick="editAnnouncement('${a.id}')">Edit</button><button type="button" class="btn-sm btn-warning" onclick="deleteAnnouncement('${a.id}')">Hapus</button></div>` : ''}</div>
+    <p>${escapeHtml(a.body)}</p><small>${escapeHtml(a.by || 'Lead')} · ${fmtTime(a.createdAt)}</small></article>`).join('')
+    : '<p class="empty-hint">Belum ada pengumuman dari mentor.</p>';
+}
+const annRef = id => doc(db, 'workspaces', state.workspaceId, 'announcements', id);
+window.togglePinAnnouncement = async (id) => {
+  const a = announcements.find(x => x.id === id);
+  if (a && state.role === 'mentor') { try { await updateDoc(annRef(id), { pinned: !a.pinned }); } catch (e) { await showAlert('Gagal: ' + e.message); } }
+};
+window.editAnnouncement = (id) => {
+  const a = announcements.find(x => x.id === id); if (!a || state.role !== 'mentor') return;
+  $('editAnnounceId').value = a.id;
+  $('editAnnounceTitle').value = a.title;
+  $('editAnnounceBody').value = a.body;
+  $('editAnnounceModal').classList.remove('hidden');
+};
+window.deleteAnnouncement = async (id) => {
+  if (state.role !== 'mentor') return;
+  if (!await askConfirm('Hapus pengumuman ini?', { title: 'Hapus pengumuman', confirmText: 'Hapus', danger: true })) return;
+  try { await deleteDoc(annRef(id)); toast('Pengumuman dihapus', 'info'); }
+  catch (e) { await showAlert('Gagal: ' + e.message); }
+};
+async function postAnnouncement(e) {
+  e.preventDefault(); if (state.role !== 'mentor') return;
+  const title = $('announceTitle').value.trim(), body = $('announceBody').value.trim();
+  if (!title || !body) return;
+  try {
+    await addDoc(collection(db, 'workspaces', state.workspaceId, 'announcements'), {
+      title, body, pinned: $('announcePinned').checked, by: state.workerName, uid: state.user.uid,
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+    });
+    e.target.reset();
+    logActivity('announce', `${state.workerName} memposting pengumuman "${title}"`);
+    notify(state.members.map(m => m.id), { kind: 'announce', title: 'Pengumuman baru', body: title });
+    toast('Pengumuman terkirim', 'success');
+  } catch (err) { await showAlert('Gagal: ' + err.message); }
+}
+
+// Pendengar event
+function setupEventListeners() {
+  $('loginForm').addEventListener('submit', handleLogin);
+  $('registerForm').addEventListener('submit', handleRegister);
+  $('authToggleLink').addEventListener('click', e => { e.preventDefault(); toggleAuthMode(); });
+  $('authToggleLink2')?.addEventListener('click', e => { e.preventDefault(); toggleAuthMode(); });
+  $('logoutBtn').addEventListener('click', handleLogout);
+  $('googleLoginBtn').addEventListener('click', async () => {
+    try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+    catch (err) { if (err.code !== 'auth/popup-closed-by-user') await showAlert('Gagal: ' + err.code); }
+  });
+  $('forgotPasswordLink').addEventListener('click', async e => {
     e.preventDefault();
-    const err = $("song-error"); err?.classList.add("hidden");
-    const title = $("song-title")?.value.trim(), url = httpUrl($("song-url")?.value);
-    if (!title) { if (err) { err.textContent = "Judul wajib diisi."; err.classList.remove("hidden"); } return; }
-    if (!url)   { if (err) { err.textContent = "URL harus http:// atau https://"; err.classList.remove("hidden"); } return; }
-    const kind = AUDIO_EXT.test(url) ? "audio" : "link";
-    S.songs.push({ id: uid(), title, note: $("song-note")?.value.trim() || "", url, kind });
-    save(); renderSongs(); e.target.reset(); pop(620); addScore(10);
-    toast("Lagu ditambahkan! 🎵", "success");
+    const email = $('loginEmail').value.trim();
+    if (!email) return showAlert('Isi alamat email terlebih dahulu.');
+    try { await sendPasswordResetEmail(auth, email); await showAlert('Tautan reset kata sandi sudah dikirim ke email Anda.', 'Email terkirim'); }
+    catch (err) { await showAlert('Gagal: ' + err.code); }
   });
-  on("song-list", "click", async (e) => {
-    const btn = e.target.closest("[data-act]"); if (!btn) return;
-    const s = S.songs.find((x) => x.id === btn.dataset.id); if (!s) return;
-    const act = btn.dataset.act;
-    if (act === "song-play") playSong(s);
-    else if (act === "song-edit") {
-      if ($("song-edit-id"))    $("song-edit-id").value    = s.id;
-      if ($("song-edit-title")) $("song-edit-title").value = s.title;
-      if ($("song-edit-note"))  $("song-edit-note").value  = s.note || "";
-      if ($("song-edit-url"))   $("song-edit-url").value   = s.url;
-      openModal("song-modal");
-    } else if (act === "song-del") {
-      if (!await askConfirm(`Hapus "${s.title}"?`, { title: "Hapus", confirmText: "Hapus", danger: true })) return;
-      S.songs = S.songs.filter((x) => x.id !== s.id);
-      if (currentSongId === s.id) {
-        player?.pause(); player?.removeAttribute("src"); currentSongId = null;
-        if ($("now-playing-title")) $("now-playing-title").textContent = "Belum ada lagu diputar";
-      }
-      save(); renderSongs(); toast("Dihapus.");
+
+  $('createWorkspaceBtn').addEventListener('click', () => $('createWorkspaceModal').classList.remove('hidden'));
+  $('joinWorkspaceBtn').addEventListener('click', () => $('joinWorkspaceModal').classList.remove('hidden'));
+  const openAccount = () => {
+    $('accountName').value = state.user?.displayName || state.user?.email.split('@')[0] || '';
+    $('accountPassword').value = '';
+    $('accountModal').classList.remove('hidden');
+  };
+  $('accountBtn').addEventListener('click', openAccount);
+  $('accountBtnTop')?.addEventListener('click', openAccount);
+  $('dashboardNavBtn').addEventListener('click', () => switchDashboardSection('home'));
+  $('myWorkspacesNavBtn').addEventListener('click', () => switchDashboardSection('workspaces'));
+  $('notificationsNavBtn').addEventListener('click', () => switchDashboardSection('notifications'));
+  $('notificationsNavBtnTop')?.addEventListener('click', () => switchDashboardSection('notifications'));
+  document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => switchDashboardSection(b.dataset.goto)));
+
+  $('createWorkspaceForm').addEventListener('submit', handleCreateWorkspace);
+  $('joinWorkspaceForm').addEventListener('submit', handleJoinWorkspace);
+  $('backToDashboardBtn').addEventListener('click', backToDashboard);
+  $('tabTaskView').addEventListener('click', () => switchWorkspaceTab('task'));
+  $('tabCalendarView').addEventListener('click', () => switchWorkspaceTab('calendar'));
+  $('tabActivityView').addEventListener('click', () => switchWorkspaceTab('activity'));
+  $('tabAnnouncementView').addEventListener('click', () => switchWorkspaceTab('announce'));
+  $('tabDivisionView').addEventListener('click', () => switchWorkspaceTab('division'));
+  $('tabTeamView').addEventListener('click', () => switchWorkspaceTab('team'));
+
+  document.querySelectorAll('[data-close]').forEach(btn => btn.addEventListener('click', () => $(btn.dataset.close).classList.add('hidden')));
+  document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => {
+    if (e.target !== m) return;
+    if (m.id === 'appDialog') closeDialog($('appDialog').dataset.mode === 'input' ? null : false);
+    else m.classList.add('hidden');
+  }));
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    closeAllSelects();
+    if (!$('appDialog').classList.contains('hidden')) { closeDialog($('appDialog').dataset.mode === 'input' ? null : false); return; }
+    document.querySelectorAll('.modal:not(.hidden)').forEach(m => m.classList.add('hidden'));
+  });
+  document.addEventListener('click', e => { if (!e.target.closest('.select-shell')) closeAllSelects(); });
+
+  $('appDialogConfirm').addEventListener('click', submitDialog);
+  $('appDialogCancel').addEventListener('click', () => closeDialog($('appDialog').dataset.mode === 'input' ? null : false));
+  $('appDialogInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitDialog(); } });
+
+  $('saveDriveBtn')?.addEventListener('click', async () => {
+    const link = ($('driveLinkInput')?.value || '').trim();
+    if (state.role !== 'mentor') return;
+    if (link && !safeUrl(link)) return showAlert('Tautan harus diawali http:// atau https://');
+    try {
+      await updateDoc(doc(db, 'workspaces', state.workspaceId), { driveLink: link });
+      state.driveLink = link; updateDriveStatus();
+      toast(link ? 'Tautan Drive disimpan' : 'Tautan Drive dihapus', 'success');
+    } catch (err) { await showAlert('Gagal: ' + err.message); }
+  });
+  $('driveLinkInput')?.addEventListener('input', e => updateDriveStatus(e.target.value));
+
+  function toggleWorkspaceDriveGroup() {
+    const g = $('workspaceDriveGroup'), s = $('taskDriveSource');
+    if (g && s) g.classList.toggle('hidden', s.value !== 'workspace');
+  }
+  $('taskDriveSource')?.addEventListener('change', toggleWorkspaceDriveGroup);
+  toggleWorkspaceDriveGroup();
+
+  function syncEndDateMin() {
+    const s = $('startDate'), e = $('endDate');
+    if (s && e && s.value) { e.min = s.value; if (e.value && e.value < s.value) e.value = s.value; }
+  }
+  $('startDate')?.addEventListener('change', syncEndDateMin);
+
+  $('createTaskForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (state.role !== 'mentor') return;
+    const startDate = $('startDate').value, endDate = $('endDate').value;
+    if (startDate && endDate && endDate < startDate) return showAlert('Tenggat tidak boleh lebih awal dari tanggal mulai.');
+    const target = $('taskAssignee').value;
+    const workers = state.members.filter(m => m.role === 'worker');
+    const isDiv = target.startsWith('__div:');
+    const targets = target === '__all' ? workers : isDiv ? workers.filter(m => (m.division || 'Umum') === target.slice(6)) : workers.filter(m => m.name === target);
+    if (!targets.length) return showAlert('Tidak ada anggota pada target penugasan ini.');
+    const taskTitle = $('taskTitle').value.trim();
+    if (!taskTitle) return showAlert('Judul tugas wajib diisi.');
+    const subText = $('taskSubtasks').value;
+    const label = target === '__all' ? 'semua anggota' : isDiv ? `divisi ${target.slice(6)}` : targets[0].name;
+    try {
+      const batch = writeBatch(db), refs = [];
+      targets.forEach(m => {
+        const ref = doc(collection(db, 'workspaces', state.workspaceId, 'tasks')); refs.push(ref);
+        batch.set(ref, {
+          title: taskTitle, assignee: m.name, difficulty: $('taskDifficulty').value, startDate, endDate,
+          desc: $('taskDesc').value.trim(), driveSource: $('taskDriveSource').value,
+          status: 'todo', reportNotes: '', reportFileLink: '', revisionNotes: '',
+          subtasks: parseSubtasks(subText), attachments: [],
+          createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+        });
+      });
+      await batch.commit();
+      e.target.reset();
+      $('taskDifficulty').value = 'sedang'; $('taskDifficulty').dispatchEvent(new Event('change'));
+      logActivity('task', `${state.workerName} membuat tugas "${taskTitle}" untuk ${label}`, refs[0].id);
+      targets.forEach((m, i) => notify([m.id], { kind: 'task', title: 'Tugas baru untuk Anda', body: taskTitle, taskId: refs[i].id }));
+      setDefaultDates(); toggleWorkspaceDriveGroup(); updateAssigneeSelect();
+      toast(`Tugas dibagikan ke ${targets.length} anggota`, 'success');
+    } catch (err) { await showAlert('Gagal: ' + err.message); }
+  });
+
+  ['taskSearch', 'filterStatus', 'filterDifficulty', 'filterAssignee'].forEach(id =>
+    $(id)?.addEventListener(id === 'taskSearch' ? 'input' : 'change', renderTasks));
+
+  $('leaveWorkspaceBtn').addEventListener('click', leaveWorkspace);
+  $('changeCodeBtn').addEventListener('click', changeJoinCode);
+  $('deleteWorkspaceBtn').addEventListener('click', deleteWorkspace);
+
+  $('editMemberForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const memId = $('editMemberId').value;
+    const target = state.members.find(m => m.id === memId);
+    if (target?.role === 'mentor' && $('editMemberRole').value !== 'mentor' && state.members.filter(m => m.role === 'mentor').length <= 1) {
+      return showAlert('Tidak bisa menurunkan mentor terakhir.');
+    }
+    try {
+      await updateDoc(doc(db, 'workspaces', state.workspaceId, 'members', memId), { role: $('editMemberRole').value, division: $('editMemberDivision').value });
+      $('editMemberModal').classList.add('hidden');
+      toast('Data anggota diperbarui', 'success');
+    } catch (err) { await showAlert('Gagal: ' + err.message); }
+  });
+
+  $('editTaskForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (state.role !== 'mentor') return;
+    const id = $('editTaskId').value, title = $('editTaskTitleInput').value.trim();
+    if (!title) return showAlert('Judul tugas wajib diisi.');
+    try {
+      await updateDoc(taskRef(id), { title, desc: $('editTaskDescInput').value.trim(), updatedAt: serverTimestamp() });
+      $('editTaskModal').classList.add('hidden');
+      toast('Tugas diperbarui', 'success');
+    } catch (err) { await showAlert('Gagal: ' + err.message); }
+  });
+
+  $('editAnnounceForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (state.role !== 'mentor') return;
+    const id = $('editAnnounceId').value, title = $('editAnnounceTitle').value.trim(), body = $('editAnnounceBody').value.trim();
+    if (!title || !body) return showAlert('Judul dan isi wajib diisi.');
+    try {
+      await updateDoc(annRef(id), { title, body, updatedAt: serverTimestamp() });
+      $('editAnnounceModal').classList.add('hidden');
+      toast('Pengumuman diperbarui', 'success');
+    } catch (err) { await showAlert('Gagal: ' + err.message); }
+  });
+
+  $('accountForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const newName = $('accountName').value.trim(), newPw = $('accountPassword').value;
+    const oldName = state.user.displayName || state.user.email.split('@')[0];
+    try {
+      if (newPw) await updatePassword(auth.currentUser, newPw);
+      if (newName && newName !== oldName) await renameUser(newName, oldName);
+      $('accountModal').classList.add('hidden');
+      toast('Akun diperbarui', 'success');
+    } catch (err) {
+      await showAlert(err.code === 'auth/requires-recent-login' ? 'Keluar lalu masuk lagi untuk mengganti kata sandi.' : 'Gagal: ' + err.message);
     }
   });
-  on("song-edit-form", "submit", (e) => {
-    e.preventDefault();
-    const s = S.songs.find((x) => x.id === $("song-edit-id")?.value); if (!s) return;
-    const url = httpUrl($("song-edit-url")?.value);
-    if (!url) return;
-    s.title = $("song-edit-title")?.value.trim();
-    s.note  = $("song-edit-note")?.value.trim();
-    s.url   = url;
-    s.kind  = AUDIO_EXT.test(url) ? "audio" : "link";
-    save(); renderSongs(); closeModal("song-modal"); pop(560);
-    toast("Diperbarui!", "success");
-  });
 
-  on("place-form", "submit", (e) => {
+  $('createDivisionForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const name = $("place-name")?.value.trim(), location = $("place-location")?.value.trim(), memory = $("place-memory")?.value.trim();
-    if (!name || !location || !memory) return;
-    S.places.push({ id: uid(), name, location, memory });
-    save(); renderPlaces(); e.target.reset(); pop(620); addScore(10);
-    toast("Tempat berkesan ditambahkan! 🗺️", "success");
-  });
-  on("places-grid", "click", async (e) => {
-    const btn = e.target.closest("[data-act]"); if (!btn) return;
-    const act = btn.dataset.act;
-    if (act === "place-cancel") { editingPlaceId = null; renderPlaces(); return; }
-    const p = S.places.find((x) => x.id === btn.dataset.id); if (!p) return;
-    if (act === "place-edit") { editingPlaceId = p.id; renderPlaces(); $(`pl-name-${p.id}`)?.focus(); }
-    else if (act === "place-del") {
-      if (!await askConfirm(`Hapus "${p.name}"?`, { title: "Hapus", confirmText: "Hapus", danger: true })) return;
-      S.places = S.places.filter((x) => x.id !== p.id);
-      save(); renderPlaces(); toast("Dihapus.");
+    const name = $('newDivisionName').value.trim();
+    if (!name || name.toLowerCase() === 'umum' || state.divisions.some(d => d.name.toLowerCase() === name.toLowerCase())) {
+      return showAlert('Nama divisi tidak valid atau sudah ada.');
     }
-  });
-  on("places-grid", "submit", (e) => {
-    const form = e.target.closest('[data-form="place-edit"]'); if (!form) return;
-    e.preventDefault();
-    const id = form.dataset.id;
-    const p = S.places.find((x) => x.id === id); if (!p) return;
-    p.name     = $(`pl-name-${id}`)?.value.trim();
-    p.location = $(`pl-loc-${id}`)?.value.trim();
-    p.memory   = $(`pl-mem-${id}`)?.value.trim();
-    editingPlaceId = null; save(); renderPlaces(); pop(560);
-    toast("Diperbarui!", "success");
+    try {
+      await addDoc(collection(db, 'workspaces', state.workspaceId, 'divisions'), { name, desc: $('newDivisionDesc').value.trim(), createdAt: serverTimestamp() });
+      e.target.reset();
+      toast('Divisi dibuat', 'success');
+    } catch (err) { await showAlert('Gagal: ' + err.message); }
   });
 
-  on("coupon-form", "submit", (e) => {
-    e.preventDefault();
-    const title = $("coupon-title")?.value.trim(), desc = $("coupon-desc")?.value.trim();
-    if (!title || !desc) return;
-    S.coupons.available.push({ id: uid(), title, desc });
-    save(); renderCoupons(); e.target.reset(); pop(620); addScore(10);
-    toast("Kupon baru dibuat! 🎟️", "success");
-  });
-  on("coupons-grid",    "click", couponAction);
-  on("coupons-history", "click", couponAction);
-  on("coupon-edit-form", "submit", (e) => {
-    e.preventDefault();
-    const c = S.coupons.available.find((x) => x.id === $("coupon-edit-id")?.value); if (!c) return;
-    c.title = $("coupon-edit-title")?.value.trim();
-    c.desc  = $("coupon-edit-desc")?.value.trim();
-    save(); renderCoupons(); closeModal("coupon-modal"); pop(560);
-    toast("Diperbarui!", "success");
+  $('saveDailyGoalBtn').addEventListener('click', async () => {
+    const goal = $('dailyGoalInput').value.trim();
+    if (!goal) return showAlert('Tulis target Anda terlebih dahulu.');
+    try {
+      await updateDoc(doc(db, 'workspaces', state.workspaceId, 'members', state.user.uid), { dailyGoal: goal, goalDate: localDate() });
+      $('dailyGoalInput').value = ''; loadDailyGoal();
+      toast('Target hari ini disimpan', 'success');
+    } catch (err) { await showAlert('Gagal: ' + err.message); }
   });
 
-  document.querySelectorAll("[data-close]").forEach((b) => on(b, "click", () => closeModal(b.dataset.close)));
-  document.querySelectorAll(".modal").forEach((m) => {
-    m.addEventListener("click", (e) => {
-      if (e.target !== m) return;
-      if (m.id === "app-dialog") closeDialog(false); else closeModal(m.id);
+  $('markAllReadBtn')?.addEventListener('click', markAllRead);
+  $('calPrev').addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); calExpanded = null; renderCalendar(); });
+  $('calNext').addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); calExpanded = null; renderCalendar(); });
+  $('calToday').addEventListener('click', () => { calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1); calExpanded = null; renderCalendar(); });
+  $('addSubtaskBtn').addEventListener('click', addSubtaskFromModal);
+  $('subtaskInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addSubtaskFromModal(); } });
+  $('addAttachBtn').addEventListener('click', addAttachmentLink);
+  $('announceForm').addEventListener('submit', postAnnouncement);
+}
+
+// Sapaan dashboard. Angka hanya dari data nyata (tugas, kebiasaan). Tiga status: memuat, siap, gagal.
+function renderGreeting() {
+  const title = $('greetTitle'); if (!title) return;
+  const text = $('welcomeText'), facts = $('greetFacts'), ring = $('greetRing');
+  const first = ((state.user?.displayName || '').trim().split(/\s+/)[0]) || '';
+  const hr = new Date().getHours();
+  const sapa = hr < 11 ? 'Selamat pagi' : hr < 15 ? 'Selamat siang' : hr < 18 ? 'Selamat sore' : 'Selamat malam';
+  title.textContent = first ? `${sapa}, ${first}` : sapa;
+
+  if (dashboardStatus === 'error') {
+    text.textContent = 'Ringkasan gagal dimuat. Periksa koneksi, lalu buka ulang Dashboard.';
+    facts.innerHTML = ''; ring.innerHTML = ''; return;
+  }
+  const habits = (prodData?.habits || []).filter(x => !x.archived);
+  const done = habits.filter(x => x.doneToday).length;
+  const pct = habits.length ? Math.round(done / habits.length * 100) : 0;
+  const best = habits.reduce((m, x) => Math.max(m, x.streak || 0), 0);
+  let soon = 0, late = 0;
+  dashboardWorkspaces.forEach(ws => {
+    late += ws.stats?.c?.overdue || 0;
+    (ws.tasks || []).forEach(t => {
+      if (t.status === 'done') return;
+      const d = daysLeft(t);
+      if (d !== null && d >= 0 && d <= 7) soon++;
     });
   });
-  on("dialog-confirm", "click", () => closeDialog(true));
-  on("dialog-cancel",  "click", () => closeDialog(false));
+
+  let msg;
+  if (dashboardStatus === 'loading') msg = 'Memuat ringkasan tugas dan kebiasaanmu.';
+  else if (late) msg = `${late} tugas sudah lewat tenggat. Mulai dari yang paling lama.`;
+  else if (soon) msg = `${soon} tugas jatuh tempo dalam 7 hari ke depan.`;
+  else if (habits.length && done < habits.length) msg = `Tinggal ${habits.length - done} kebiasaan lagi untuk hari ini.`;
+  else if (habits.length) msg = 'Semua kebiasaan hari ini sudah tercentang.';
+  else msg = 'Belum ada kebiasaan. Tambah satu di bawah untuk mulai mencatat.';
+  text.textContent = msg;
+
+  const items = [];
+  if (best) items.push(`Streak terpanjang ${best} hari`);
+  if (dashboardStatus === 'ready' && soon) items.push(`${soon} tenggat minggu ini`);
+  if (habits.length) items.push(`${done} dari ${habits.length} kebiasaan`);
+  facts.innerHTML = items.map(i => `<li>${i}</li>`).join('');
+
+  if (!habits.length) { ring.innerHTML = ''; ring.classList.add('hidden'); return; }
+  ring.classList.remove('hidden');
+  const C = 2 * Math.PI * 34;
+  ring.setAttribute('aria-label', `Progres kebiasaan hari ini: ${pct} persen`);
+  ring.innerHTML = `<svg viewBox="0 0 80 80" width="96" height="96" aria-hidden="true"><circle class="ring-bg" cx="40" cy="40" r="34"/><circle class="ring-fg" cx="40" cy="40" r="34" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - pct / 100)).toFixed(1)}"/></svg><span class="ring-num" aria-hidden="true">${pct}%</span>`;
 }
+
+// Produktivitas pribadi: kebiasaan, mood, insight
+const PROD_KEY = 'akasha_productivity_v3';
+const PROD_KEY_V2 = 'akasha_productivity_v2';
+const MOOD_LABEL = { 1: 'Sangat buruk', 2: 'Buruk', 3: 'Biasa', 4: 'Baik', 5: 'Sangat baik' };
+const moodFace = n => { const k = MOOD_LABEL[n] ? n : 3; return `<svg class="face" role="img" aria-label="${MOOD_LABEL[k]}"><use href="#f${k}"/></svg>`; };
+const CAT_ICONS = { sehat: '', kerja: '', belajar: '' }; // tanpa emoji: ikon kebiasaan memakai huruf awal nama
+const MILESTONES = [7, 21, 30, 66, 100];
+let prodData = null;
+let selectedMood = null;
+let selectedMoodTags = [];
+let habitCatFilter = 'all';
+let expandedHabitId = null;
+let moodMonthCursor = null; // Date at month start
+let moodEditSelected = null;
+let prodSyncTimer = null;
+let prodCloudUnsub = null;
+
+function emptyProd() {
+  return {
+    habits: [],
+    habitHistory: [],
+    moodToday: null,
+    moodNote: '',
+    moodHistory: [],
+    lastRollDate: localDate(),
+    moodStreak: 0,
+    celebratedMilestones: {}
+  };
+}
+
+function migrateProdV2toV3(v2) {
+  const d = emptyProd();
+  d.habits = (v2.habits || []).map(h => ({
+    id: h.id || newId(),
+    name: h.name || 'Kebiasaan',
+    streak: h.streak || 0,
+    longest: h.longest || 0,
+    doneToday: !!h.doneToday,
+    history: h.history || {},
+    schedule: h.schedule || { type: 'daily' },
+    icon: h.icon || '',
+    category: h.category || 'kerja',
+    archived: !!h.archived,
+    freezes: typeof h.freezes === 'number' ? h.freezes : 1,
+    freezeUsedMonth: h.freezeUsedMonth || ''
+  }));
+  d.habitHistory = Array.isArray(v2.habitHistory) ? v2.habitHistory : [];
+  d.moodToday = v2.moodToday ?? null;
+  d.moodNote = v2.moodNote || '';
+  d.moodHistory = (v2.moodHistory || []).map(m => ({
+    date: m.date, mood: m.mood, note: m.note || '', tags: m.tags || []
+  }));
+  d.lastRollDate = v2.lastRollDate || localDate();
+  return d;
+}
+
+function loadProdLocal() {
+  try {
+    const raw = localStorage.getItem(PROD_KEY);
+    if (raw) {
+      prodData = JSON.parse(raw);
+      normalizeProd();
+      return true;
+    }
+    const v2 = localStorage.getItem(PROD_KEY_V2);
+    if (v2) {
+      prodData = migrateProdV2toV3(JSON.parse(v2));
+      localStorage.removeItem(PROD_KEY_V2);
+      saveProdLocal();
+      return true;
+    }
+  } catch (_) {}
+  prodData = emptyProd();
+  saveProdLocal();
+  return false;
+}
+
+function normalizeProd() {
+  if (!prodData) prodData = emptyProd();
+  if (!Array.isArray(prodData.habits)) prodData.habits = [];
+  if (!Array.isArray(prodData.habitHistory)) prodData.habitHistory = [];
+  if (!Array.isArray(prodData.moodHistory)) prodData.moodHistory = [];
+  if (!prodData.celebratedMilestones) prodData.celebratedMilestones = {};
+  prodData.habits.forEach(h => {
+    if (!h.history) h.history = {};
+    if (!h.schedule) h.schedule = { type: 'daily' };
+    if (!h.category) h.category = 'kerja';
+    if (typeof h.freezes !== 'number') h.freezes = 1;
+    if (!h.freezeUsedMonth) h.freezeUsedMonth = '';
+    if (typeof h.archived !== 'boolean') h.archived = false;
+  });
+  prodData.moodHistory.forEach(m => { if (!Array.isArray(m.tags)) m.tags = []; if (!m.note) m.note = ''; });
+  if (!prodData.lastRollDate) prodData.lastRollDate = localDate();
+}
+
+function saveProdLocal() {
+  try { localStorage.setItem(PROD_KEY, JSON.stringify(prodData)); } catch (_) {}
+}
+
+function saveProd() {
+  normalizeProd();
+  saveProdLocal();
+  scheduleProdCloudSave();
+}
+
+function scheduleProdCloudSave() {
+  if (!state.user) return;
+  clearTimeout(prodSyncTimer);
+  prodSyncTimer = setTimeout(() => persistProdToCloud(), 600);
+}
+
+async function persistProdToCloud() {
+  if (!state.user || !prodData) return;
+  try {
+    await setDoc(doc(db, 'users', state.user.uid, 'productivity', 'data'), {
+      ...prodData,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  } catch (e) { console.warn('Gagal sync produktivitas:', e); }
+}
+
+async function loadProdFromCloud() {
+  if (!state.user) return;
+  try {
+    const snap = await getDoc(doc(db, 'users', state.user.uid, 'productivity', 'data'));
+    if (snap.exists()) {
+      const cloud = snap.data();
+      delete cloud.updatedAt;
+      const localTs = 0;
+      prodData = cloud;
+      normalizeProd();
+      saveProdLocal();
+    }
+  } catch (e) { console.warn('Gagal muat produktivitas cloud:', e); }
+}
+
+function isScheduledDay(h, dateStr) {
+  const sch = h.schedule || { type: 'daily' };
+  if (sch.type === 'daily') return true;
+  const d = new Date(dateStr + 'T12:00:00');
+  const dow = d.getDay(); // 0 Sun
+  if (sch.type === 'days') return (sch.days || []).map(Number).includes(dow);
+  if (sch.type === 'weekly') return true; // any day can count toward weekly target
+  return true;
+}
+
+function weekKey(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const onejan = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil((((d - onejan) / 864e5) + onejan.getDay() + 1) / 7);
+  return d.getFullYear() + '-W' + week;
+}
+
+function weeklyDoneCount(h, dateStr) {
+  const wk = weekKey(dateStr);
+  let n = 0;
+  Object.keys(h.history || {}).forEach(dt => {
+    if (weekKey(dt) === wk && h.history[dt]) n++;
+  });
+  return n;
+}
+
+function rollOverDay() {
+  if (!prodData) return;
+  const today = localDate();
+  if (prodData.lastRollDate === today) return;
+
+  let cursor = new Date(prodData.lastRollDate + 'T12:00:00');
+  const end = new Date(today + 'T12:00:00');
+  end.setDate(end.getDate() - 1);
+
+  while (cursor <= end) {
+    const ds = localDate(cursor);
+    const monthKey = ds.slice(0, 7);
+    prodData.habits.forEach(h => {
+      // record previous doneToday only for lastRollDate itself already done; for intermediate days treat as missed
+      const wasDone = (ds === prodData.lastRollDate) ? !!h.doneToday : !!h.history?.[ds];
+      if (!h.history) h.history = {};
+      if (wasDone) h.history[ds] = true;
+
+      if (isScheduledDay(h, ds) && !wasDone) {
+        // try freeze
+        if (h.freezes > 0 && h.freezeUsedMonth !== monthKey) {
+          h.freezes -= 1;
+          h.freezeUsedMonth = monthKey;
+          h.history[ds] = true; // freeze counts as protected
+          h._lastFreeze = ds;
+        } else {
+          h.streak = 0;
+        }
+      }
+      h.doneToday = false;
+    });
+    let cell = prodData.habitHistory.find(c => c.date === ds);
+    if (!cell) { cell = { date: ds, level: 0 }; prodData.habitHistory.push(cell); }
+    const active = prodData.habits.filter(x => !x.archived);
+    const done = active.filter(x => x.history?.[ds]).length;
+    cell.level = active.length ? Math.min(4, Math.ceil((done / active.length) * 4)) : 0;
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  // mood streak break if yesterday missing
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  const ys = localDate(y);
+  if (!prodData.moodHistory.some(m => m.date === ys) && prodData.moodToday == null) {
+    // only break if we rolled past yesterday without entry
+  }
+  // reset today mood flags if lastRoll was not today
+  if (prodData.lastRollDate !== today) {
+    // keep moodToday only if it was for today (it's not, so clear)
+    const lastMood = prodData.moodHistory.find(m => m.date === prodData.lastRollDate);
+    if (prodData.moodToday != null && prodData.lastRollDate !== today) {
+      // already in history presumably
+      prodData.moodToday = null;
+      prodData.moodNote = '';
+    }
+    // recompute mood streak
+    prodData.moodStreak = computeMoodStreak();
+  }
+
+  prodData.lastRollDate = today;
+  prodData.habits.forEach(h => { h.doneToday = !!h.history?.[today]; });
+  saveProd();
+}
+
+function computeMoodStreak() {
+  let streak = 0;
+  const d = new Date();
+  for (;;) {
+    const ds = localDate(d);
+    if (prodData.moodHistory.some(m => m.date === ds) || (ds === localDate() && prodData.moodToday)) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    } else break;
+  }
+  return streak;
+}
+
+function ensureProdToday() {
+  if (!prodData) loadProdLocal();
+  rollOverDay();
+}
+
+function activeHabits() {
+  return (prodData.habits || []).filter(h => !h.archived && (habitCatFilter === 'all' || h.category === habitCatFilter));
+}
+
+function renderHabits() {
+  ensureProdToday();
+  const list = $('habitList');
+  if (!list) return;
+  const habits = activeHabits();
+  if (!habits.length) {
+    list.innerHTML = '<p class="empty-hint" style="padding:.5rem 0">Belum ada kebiasaan. Tekan “Tambah kebiasaan” untuk mulai.</p>';
+  } else {
+    list.innerHTML = habits.map(h => {
+      const icon = h.icon || (h.name || '#').trim().charAt(0).toUpperCase();
+      const milestone = MILESTONES.filter(m => h.streak >= m).pop();
+      const celebrated = milestone && (prodData.celebratedMilestones[h.id] || []).includes(milestone);
+      let progress = '';
+      if (h.schedule?.type === 'weekly') {
+        const t = h.schedule.target || 3;
+        const n = weeklyDoneCount(h, localDate());
+        progress = `<span class="habit-progress">${n}/${t} minggu ini</span>`;
+      }
+      const open = expandedHabitId === h.id;
+      const cells = [];
+      for (let i = 55; i >= 0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        const ds = localDate(d);
+        const on = !!h.history?.[ds];
+        cells.push(`<div class="contrib-cell ${on ? 'lv3' : 'lv0'}" title="${ds}"></div>`);
+      }
+      let done30 = 0;
+      for (let i = 0; i < 30; i++) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        if (h.history?.[localDate(d)]) done30++;
+      }
+      return `
+      <div class="habit-block" data-id="${h.id}">
+        <div class="habit-item ${h.doneToday ? 'done' : ''}" data-id="${h.id}">
+          <button type="button" class="habit-check" data-toggle="${h.id}" aria-pressed="${h.doneToday}" aria-label="Tandai ${escapeHtml(h.name)} selesai hari ini">${h.doneToday ? '<svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>' : ''}</button>
+          <span class="habit-icon">${escapeHtml(icon)}</span>
+          <button type="button" class="habit-name" aria-expanded="${open}">${escapeHtml(h.name)}</button>
+          ${progress}
+          <span class="habit-days">${h.streak} hari${milestone ? ' <span class="milestone-pill">Milestone ' + milestone + '</span>' : ''}</span>
+          <button type="button" class="habit-edit-btn" data-edit="${h.id}" aria-label="Edit ${escapeHtml(h.name)}">Edit</button>
+        </div>
+        <div class="habit-detail ${open ? '' : 'hidden'}" data-detail="${h.id}">
+          <div class="habit-detail-stats">
+            <span>${done30}/30 hari · ${Math.round(done30 / 30 * 100)}%</span>
+            <span>Streak ${h.streak} · terpanjang ${h.longest}</span>
+            <span>Freeze: ${h.freezes}</span>
+          </div>
+          <div class="contrib-graph habit-mini-graph">${cells.join('')}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('[data-toggle]').forEach(el => {
+      el.addEventListener('click', e => { e.stopPropagation(); toggleHabit(el.dataset.toggle); });
+    });
+    list.querySelectorAll('.habit-item').forEach(el => {
+      el.addEventListener('click', e => {
+        if (e.target.closest('[data-toggle]') || e.target.closest('[data-edit]')) return;
+        const id = el.dataset.id;
+        expandedHabitId = expandedHabitId === id ? null : id;
+        renderHabits();
+      });
+    });
+    list.querySelectorAll('[data-edit]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        openHabitModal(btn.dataset.edit);
+      });
+    });
+  }
+
+  const top = habits.length ? habits.reduce((a, b) => (a.streak >= b.streak ? a : b), habits[0]) : null;
+  const info = $('habitStreakInfo');
+  if (info) info.textContent = top && top.streak > 0
+    ? `${top.name} · ${top.streak} hari beruntun · terpanjang ${top.longest}`
+    : (habits.length ? 'Belum ada streak. Centang kebiasaan hari ini.' : '');
+
+  const graph = $('contribGraph');
+  if (graph) {
+    let recent = (prodData.habitHistory || []).slice(-105);
+    if (recent.length < 105) {
+      const pad = 105 - recent.length;
+      const filled = [];
+      for (let i = pad - 1; i >= 0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - (recent.length + i));
+        filled.push({ date: localDate(d), level: 0 });
+      }
+      recent = filled.concat(recent);
+    }
+    graph.innerHTML = recent.map(c => `<div class="contrib-cell lv${c.level || 0}" title="${c.date || ''}"></div>`).join('');
+  }
+  renderReminderBanner();
+  renderInsight();
+}
+
+function toggleHabit(id) {
+  const h = prodData.habits.find(x => x.id === id);
+  if (!h) return;
+  const today = localDate();
+  if (!isScheduledDay(h, today) && h.schedule?.type === 'days') {
+    toast('Hari ini tidak terjadwal untuk kebiasaan ini', 'info');
+    return;
+  }
+  h.doneToday = !h.doneToday;
+  if (!h.history) h.history = {};
+  if (h.doneToday) {
+    h.history[today] = true;
+    h.streak += 1;
+    if (h.streak > h.longest) h.longest = h.streak;
+    MILESTONES.forEach(m => {
+      if (h.streak === m) {
+        if (!prodData.celebratedMilestones[h.id]) prodData.celebratedMilestones[h.id] = [];
+        if (!prodData.celebratedMilestones[h.id].includes(m)) {
+          prodData.celebratedMilestones[h.id].push(m);
+          toast(`Streak ${m} hari: ${h.name}!`, 'success');
+        }
+      }
+    });
+  } else {
+    delete h.history[today];
+    h.streak = Math.max(0, h.streak - 1);
+  }
+  let cell = prodData.habitHistory.find(c => c.date === today);
+  if (!cell) { cell = { date: today, level: 0 }; prodData.habitHistory.push(cell); }
+  const active = prodData.habits.filter(x => !x.archived);
+  const doneCount = active.filter(x => x.doneToday).length;
+  cell.level = Math.min(4, Math.ceil((doneCount / Math.max(1, active.length)) * 4));
+  saveProd();
+  renderHabits();
+  renderGreeting();
+  toast(h.doneToday ? `Selesai: ${h.name}` : `Dibatalkan: ${h.name}`, 'success');
+}
+
+function openHabitModal(id) {
+  const isEdit = !!id;
+  $('habitModalTitle').textContent = isEdit ? 'Edit kebiasaan' : 'Tambah kebiasaan';
+  $('habitEditId').value = id || '';
+  const h = id ? prodData.habits.find(x => x.id === id) : null;
+  $('habitNameInput').value = h ? h.name : '';
+  if ($('habitCategory')) $('habitCategory').value = h?.category || 'kerja';
+  if ($('habitIcon')) $('habitIcon').value = h?.icon || '';
+  if ($('habitScheduleType')) $('habitScheduleType').value = h?.schedule?.type || 'daily';
+  if ($('habitWeeklyTarget')) $('habitWeeklyTarget').value = h?.schedule?.target || 3;
+  if ($('habitArchived')) $('habitArchived').checked = !!h?.archived;
+  const days = h?.schedule?.days || [];
+  document.querySelectorAll('#habitDaysPicker input').forEach(cb => {
+    cb.checked = days.map(Number).includes(Number(cb.value));
+  });
+  toggleHabitScheduleFields();
+  $('habitDeleteBtn').classList.toggle('hidden', !isEdit);
+  $('habitModal').classList.remove('hidden');
+  setTimeout(() => $('habitNameInput').focus(), 40);
+}
+
+function toggleHabitScheduleFields() {
+  const t = $('habitScheduleType')?.value || 'daily';
+  $('habitWeeklyTargetWrap')?.classList.toggle('hidden', t !== 'weekly');
+  $('habitDaysWrap')?.classList.toggle('hidden', t !== 'days');
+}
+
+function renderMoodUI() {
+  ensureProdToday();
+  selectedMood = prodData.moodToday;
+  document.querySelectorAll('#moodPicker .mood-btn').forEach(b => {
+    b.classList.toggle('selected', Number(b.dataset.mood) === selectedMood);
+  });
+  if ($('moodNote')) $('moodNote').value = prodData.moodNote || '';
+
+  selectedMoodTags = [];
+  const todayEntry = prodData.moodHistory.find(m => m.date === localDate());
+  if (todayEntry?.tags) selectedMoodTags = [...todayEntry.tags];
+  document.querySelectorAll('#moodTagRow .mood-tag-chip[data-tag]').forEach(c => {
+    c.classList.toggle('selected', selectedMoodTags.includes(c.dataset.tag));
+  });
+
+  const streak = computeMoodStreak();
+  prodData.moodStreak = streak;
+  const pill = $('moodStreakPill');
+  if (pill) {
+    if (streak > 0) { pill.textContent = `Streak ${streak} hari beruntun`; pill.classList.remove('hidden'); }
+    else pill.classList.add('hidden');
+  }
+
+  renderMoodMonthChart();
+  renderMoodJournal();
+  renderReminderBanner();
+  renderInsight();
+}
+
+function renderMoodMonthChart() {
+  const chart = $('moodChart');
+  if (!chart) return;
+  if (!moodMonthCursor) {
+    const n = new Date();
+    moodMonthCursor = new Date(n.getFullYear(), n.getMonth(), 1);
+  }
+  const y = moodMonthCursor.getFullYear();
+  const m = moodMonthCursor.getMonth();
+  const label = $('moodMonthLabel');
+  if (label) label.textContent = moodMonthCursor.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const entries = {};
+  (prodData.moodHistory || []).forEach(e => {
+    if (e.date.startsWith(`${y}-${String(m + 1).padStart(2, '0')}`)) entries[e.date] = e.mood;
+  });
+  if (localDate().startsWith(`${y}-${String(m + 1).padStart(2, '0')}`) && prodData.moodToday) {
+    entries[localDate()] = prodData.moodToday;
+  }
+
+  const moods = Object.values(entries);
+  const avg = moods.length ? (moods.reduce((a, b) => a + b, 0) / moods.length) : 0;
+  const dist = [0, 0, 0, 0, 0];
+  moods.forEach(v => { if (v >= 1 && v <= 5) dist[v - 1]++; });
+  const stats = $('moodMonthStats');
+  if (stats) {
+    stats.innerHTML = moods.length
+      ? `<span class="mood-avg">${moodFace(Math.round(avg))} ${avg.toFixed(1)}</span>
+         <span class="mood-dist">${[1,2,3,4,5].map(i => `<span>${moodFace(i)} ${dist[i-1]}</span>`).join('')}</span>`
+      : '<span class="empty-hint">Belum ada data bulan ini</span>';
+  }
+
+  const w = Math.max(280, daysInMonth * 10), h = 72, pad = 4;
+  let bars = '';
+  for (let day = 1; day <= daysInMonth; day++) {
+    const ds = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const mood = entries[ds] || 0;
+    const bh = mood ? ((mood / 5) * (h - pad * 2)) : 2;
+    const x = pad + ((day - 1) / daysInMonth) * (w - pad * 2);
+    const bw = Math.max(4, (w - pad * 2) / daysInMonth - 2);
+    bars += `<rect x="${x.toFixed(1)}" y="${(h - pad - bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" class="${mood ? 'mb' : 'mb-empty'}"/>`;
+  }
+  chart.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" width="100%" height="72">${bars}</svg>`;
+}
+
+function renderMoodJournal() {
+  const el = $('moodJournalList');
+  if (!el) return;
+  const items = [...(prodData.moodHistory || [])].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
+  if (!items.length) {
+    el.innerHTML = '<p class="empty-hint">Belum ada jurnal mood.</p>';
+    return;
+  }
+  const isMobile = window.innerWidth <= 768;
+  const show = isMobile ? items.slice(0, 5) : items;
+  el.innerHTML = show.map(m => {
+    const d = new Date(m.date + 'T12:00:00');
+    const label = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    const tags = (m.tags || []).map(t => `<span class="mood-tag-chip mini">${escapeHtml(t)}</span>`).join('');
+    return `<button type="button" class="mood-journal-item" data-date="${m.date}">
+      <span class="mj-emoji">${moodFace(m.mood)}</span>
+      <span class="mj-body"><span class="mj-date">${label}</span>
+      ${m.note ? `<span class="mj-note">${escapeHtml(m.note)}</span>` : ''}
+      <span class="mj-tags">${tags}</span></span>
+    </button>`;
+  }).join('') + (isMobile && items.length > 5 ? '<button type="button" class="btn-sm btn-ghost" id="moodJournalMore">Lihat semua</button>' : '');
+
+  el.querySelectorAll('.mood-journal-item').forEach(btn => {
+    btn.addEventListener('click', () => openMoodEdit(btn.dataset.date));
+  });
+}
+
+function openMoodEdit(date) {
+  const m = prodData.moodHistory.find(x => x.date === date);
+  if (!m) return;
+  $('moodEditDate').value = date;
+  moodEditSelected = m.mood;
+  document.querySelectorAll('#moodEditPicker .mood-btn').forEach(b => {
+    b.classList.toggle('selected', Number(b.dataset.mood) === m.mood);
+  });
+  $('moodEditNote').value = m.note || '';
+  $('moodEditTags').value = (m.tags || []).join(', ');
+  $('moodEditModal').classList.remove('hidden');
+}
+
+function renderInsight() {
+  const body = $('insightBody');
+  if (!body) return;
+  const hist = prodData.habitHistory || [];
+  const moods = {};
+  (prodData.moodHistory || []).forEach(m => { moods[m.date] = m.mood; });
+  let high = [], low = [];
+  hist.forEach(c => {
+    if (moods[c.date] == null) return;
+    if (c.level >= 3) high.push(moods[c.date]);
+    else if (c.level <= 2) low.push(moods[c.date]);
+  });
+  if (high.length + low.length < 6) {
+    body.innerHTML = '<p class="empty-hint">Belum cukup data</p>';
+    return;
+  }
+  const avg = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+  const ah = avg(high), al = avg(low);
+  const diff = ah - al;
+  if (Math.abs(diff) < 0.15) {
+    body.innerHTML = '<p>Belum terlihat pola kuat antara kebiasaan dan mood.</p>';
+  } else if (diff > 0) {
+    body.innerHTML = `<p>Saat kamu menuntaskan kebiasaan, mood-mu rata-rata <strong>${diff.toFixed(1)} poin lebih tinggi</strong>.</p>`;
+  } else {
+    body.innerHTML = `<p>Menarik: mood-mu justru lebih tinggi di hari dengan kebiasaan lebih longgar (selisih ${Math.abs(diff).toFixed(1)} poin).</p>`;
+  }
+}
+
+function renderReminderBanner() {
+  const ban = $('prodReminderBanner');
+  const txt = $('prodReminderText');
+  if (!ban || !txt) return;
+  const hour = new Date().getHours();
+  if (hour < 19) { ban.classList.add('hidden'); return; }
+  ensureProdToday();
+  const pending = (prodData.habits || []).filter(h => !h.archived && isScheduledDay(h, localDate()) && !h.doneToday);
+  const noMood = prodData.moodToday == null && !prodData.moodHistory.some(m => m.date === localDate());
+  if (!pending.length && !noMood) { ban.classList.add('hidden'); return; }
+  const parts = [];
+  if (pending.length) parts.push(`${pending.length} kebiasaan belum dicentang`);
+  if (noMood) parts.push('kamu belum check-in mood');
+  txt.textContent = parts.join(' · ');
+  ban.classList.remove('hidden');
+}
+
+function openRecapModal() {
+  const body = $('recapBody');
+  if (!body) return;
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const prefix = `${y}-${String(m + 1).padStart(2, '0')}`;
+  const moods = (prodData.moodHistory || []).filter(e => e.date.startsWith(prefix));
+  const avg = moods.length ? moods.reduce((a, b) => a + b.mood, 0) / moods.length : 0;
+  let best = null, worst = null;
+  moods.forEach(e => {
+    if (!best || e.mood > best.mood) best = e;
+    if (!worst || e.mood < worst.mood) worst = e;
+  });
+  const tagCount = {};
+  moods.forEach(e => (e.tags || []).forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; }));
+  const topTag = Object.entries(tagCount).sort((a, b) => b[1] - a[1])[0];
+  let habitDone = 0, habitTotal = 0;
+  (prodData.habits || []).forEach(h => {
+    Object.keys(h.history || {}).forEach(ds => {
+      if (ds.startsWith(prefix)) { habitTotal++; if (h.history[ds]) habitDone++; }
+    });
+  });
+  // recount properly: per habit scheduled days in month
+  habitDone = 0; habitTotal = 0;
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  (prodData.habits || []).filter(h => !h.archived).forEach(h => {
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ds = `${prefix}-${String(d).padStart(2, '0')}`;
+      if (ds > localDate()) continue;
+      if (!isScheduledDay(h, ds)) continue;
+      habitTotal++;
+      if (h.history?.[ds]) habitDone++;
+    }
+  });
+  const longest = (prodData.habits || []).reduce((mx, h) => Math.max(mx, h.longest || 0), 0);
+  const monthName = now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  body.innerHTML = `
+    <p class="recap-month">${escapeHtml(monthName)}</p>
+    <ul class="recap-list">
+      <li>Rata-rata mood: <strong>${moods.length ? avg.toFixed(1) + ' ' + moodFace(Math.round(avg)) : '-'}</strong></li>
+      <li>Hari terbaik: <strong>${best ? best.date + ' ' + moodFace(best.mood) : '-'}</strong></li>
+      <li>Hari terendah: <strong>${worst ? worst.date + ' ' + moodFace(worst.mood) : '-'}</strong></li>
+      <li>Tag tersering: <strong>${topTag ? escapeHtml(topTag[0]) + ' (' + topTag[1] + ')' : '-'}</strong></li>
+      <li>Penyelesaian kebiasaan: <strong>${habitTotal ? Math.round(habitDone / habitTotal * 100) + '%' : '-'} (${habitDone}/${habitTotal})</strong></li>
+      <li>Streak terpanjang: <strong>${longest} hari</strong></li>
+    </ul>`;
+  window.__recapText = `Rekap ${monthName}\nMood rata-rata: ${avg.toFixed(1)}\nHari terbaik: ${best ? best.date : '-'}\nHari terendah: ${worst ? worst.date : '-'}\nTag: ${topTag ? topTag[0] : '-'}\nKebiasaan: ${habitDone}/${habitTotal}\nStreak terpanjang: ${longest} hari`;
+  $('recapModal').classList.remove('hidden');
+}
+
+function setupProductivityEvents() {
+  $('addHabitBtn')?.addEventListener('click', () => openHabitModal(null));
+  $('habitScheduleType')?.addEventListener('change', toggleHabitScheduleFields);
+
+  $('habitForm')?.addEventListener('submit', e => {
+    e.preventDefault();
+    const name = $('habitNameInput').value.trim();
+    if (!name) return;
+    const id = $('habitEditId').value;
+    const category = $('habitCategory')?.value || 'kerja';
+    const icon = ($('habitIcon')?.value || '').trim() || '';
+    const st = $('habitScheduleType')?.value || 'daily';
+    let schedule = { type: 'daily' };
+    if (st === 'weekly') schedule = { type: 'weekly', target: Number($('habitWeeklyTarget')?.value || 3) };
+    if (st === 'days') {
+      const days = Array.from(document.querySelectorAll('#habitDaysPicker input:checked')).map(c => Number(c.value));
+      schedule = { type: 'days', days };
+    }
+    const archived = !!$('habitArchived')?.checked;
+    if (id) {
+      const h = prodData.habits.find(x => x.id === id);
+      if (h) { h.name = name; h.category = category; h.icon = icon; h.schedule = schedule; h.archived = archived; }
+      toast('Kebiasaan diperbarui', 'success');
+    } else {
+      prodData.habits.push({
+        id: newId(), name, streak: 0, longest: 0, doneToday: false,
+        history: {}, schedule, icon, category, archived, freezes: 1, freezeUsedMonth: ''
+      });
+      toast('Kebiasaan ditambahkan', 'success');
+    }
+    saveProd();
+    $('habitModal').classList.add('hidden');
+    renderHabits();
+  });
+
+  $('habitDeleteBtn')?.addEventListener('click', async () => {
+    const id = $('habitEditId').value;
+    if (!id) return;
+    if (!await askConfirm('Hapus kebiasaan ini?', { title: 'Hapus', confirmText: 'Hapus', danger: true })) return;
+    prodData.habits = prodData.habits.filter(h => h.id !== id);
+    saveProd();
+    $('habitModal').classList.add('hidden');
+    renderHabits();
+    toast('Kebiasaan dihapus', 'info');
+  });
+
+  document.querySelectorAll('#habitCatFilters .habit-cat-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      habitCatFilter = btn.dataset.cat;
+      document.querySelectorAll('#habitCatFilters .habit-cat-chip').forEach(b => b.classList.toggle('active', b === btn));
+      renderHabits();
+    });
+  });
+
+  document.querySelectorAll('#moodPicker .mood-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      selectedMood = Number(b.dataset.mood);
+      document.querySelectorAll('#moodPicker .mood-btn').forEach(x => x.classList.toggle('selected', Number(x.dataset.mood) === selectedMood));
+    });
+  });
+
+  document.querySelectorAll('#moodTagRow .mood-tag-chip[data-tag]').forEach(c => {
+    c.addEventListener('click', () => {
+      const t = c.dataset.tag;
+      if (selectedMoodTags.includes(t)) selectedMoodTags = selectedMoodTags.filter(x => x !== t);
+      else selectedMoodTags.push(t);
+      c.classList.toggle('selected', selectedMoodTags.includes(t));
+    });
+  });
+
+  $('moodTagCustomBtn')?.addEventListener('click', async () => {
+    const t = await askText({ title: 'Tag kustom', message: 'Nama tag baru', label: 'Tag', placeholder: 'Misal: Olahraga' });
+    if (!t || !String(t).trim()) return;
+    const tag = String(t).trim().slice(0, 20);
+    if (!selectedMoodTags.includes(tag)) selectedMoodTags.push(tag);
+    toast('Tag ditambahkan', 'success');
+  });
+
+  $('saveMoodBtn')?.addEventListener('click', () => {
+    if (!selectedMood && !prodData.moodToday) { toast('Pilih mood dulu', 'info'); return; }
+    const mood = selectedMood || prodData.moodToday;
+    const note = ($('moodNote')?.value || '').trim();
+    const today = localDate();
+    prodData.moodToday = mood;
+    prodData.moodNote = note;
+    const existing = prodData.moodHistory.find(m => m.date === today);
+    if (existing) { existing.mood = mood; existing.note = note; existing.tags = [...selectedMoodTags]; }
+    else prodData.moodHistory.push({ date: today, mood, note, tags: [...selectedMoodTags] });
+    prodData.moodStreak = computeMoodStreak();
+    saveProd();
+    renderMoodUI();
+    toast('Mood hari ini disimpan', 'success');
+  });
+
+  document.querySelectorAll('#moodEditPicker .mood-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      moodEditSelected = Number(b.dataset.mood);
+      document.querySelectorAll('#moodEditPicker .mood-btn').forEach(x => x.classList.toggle('selected', Number(x.dataset.mood) === moodEditSelected));
+    });
+  });
+
+  $('moodEditForm')?.addEventListener('submit', e => {
+    e.preventDefault();
+    const date = $('moodEditDate').value;
+    const m = prodData.moodHistory.find(x => x.date === date);
+    if (!m) return;
+    m.mood = moodEditSelected || m.mood;
+    m.note = ($('moodEditNote').value || '').trim();
+    m.tags = ($('moodEditTags').value || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (date === localDate()) {
+      prodData.moodToday = m.mood;
+      prodData.moodNote = m.note;
+    }
+    saveProd();
+    $('moodEditModal').classList.add('hidden');
+    renderMoodUI();
+    toast('Jurnal diperbarui', 'success');
+  });
+
+  $('moodDeleteBtn')?.addEventListener('click', async () => {
+    const date = $('moodEditDate').value;
+    if (!await askConfirm('Hapus entri mood ini?', { title: 'Hapus', confirmText: 'Hapus', danger: true })) return;
+    prodData.moodHistory = prodData.moodHistory.filter(m => m.date !== date);
+    if (date === localDate()) { prodData.moodToday = null; prodData.moodNote = ''; }
+    saveProd();
+    $('moodEditModal').classList.add('hidden');
+    renderMoodUI();
+    toast('Entri dihapus', 'info');
+  });
+
+  $('moodMonthPrev')?.addEventListener('click', () => {
+    if (!moodMonthCursor) moodMonthCursor = new Date();
+    moodMonthCursor = new Date(moodMonthCursor.getFullYear(), moodMonthCursor.getMonth() - 1, 1);
+    renderMoodMonthChart();
+  });
+  $('moodMonthNext')?.addEventListener('click', () => {
+    if (!moodMonthCursor) moodMonthCursor = new Date();
+    moodMonthCursor = new Date(moodMonthCursor.getFullYear(), moodMonthCursor.getMonth() + 1, 1);
+    renderMoodMonthChart();
+  });
+
+  $('openRecapBtn')?.addEventListener('click', openRecapModal);
+  $('copyRecapBtn')?.addEventListener('click', async () => {
+    const t = window.__recapText || '';
+    try {
+      await navigator.clipboard.writeText(t);
+      toast('Rekap disalin', 'success');
+    } catch {
+      await showAlert(t || 'Tidak ada teks');
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      rollOverDay();
+      renderHabits();
+      renderMoodUI();
+    }
+  });
+}
+
+function refreshProductivityUI() {
+  if (!prodData) return;
+  renderHabits();
+  renderMoodUI();
+}
+
+
+// Inisialisasi
+const THEME_COLORS = { light: '#E9F0EF', dark: '#0A1413', playful: '#BCD3FA' };
+function initTheme() {
+  const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+  const t = localStorage.getItem('akasha_theme') || (localStorage.getItem('darkMode') === 'true' || prefersDark ? 'dark' : 'light');
+  applyTheme(t, false);
+  document.querySelectorAll('#themePicker .theme-opt').forEach(btn => btn.addEventListener('click', () => applyTheme(btn.dataset.theme)));
+}
+function applyTheme(t, persist = true) {
+  document.body.classList.remove('dark-mode', 'theme-playful');
+  if (t === 'dark') document.body.classList.add('dark-mode');
+  if (t === 'playful') document.body.classList.add('theme-playful');
+  if (persist) localStorage.setItem('akasha_theme', t);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[t] || THEME_COLORS.light);
+  document.querySelectorAll('#themePicker .theme-opt').forEach(b => b.classList.toggle('active', b.dataset.theme === t));
+}
+
+// Status tombol toggle (aria-pressed) mengikuti kelas selected/active, supaya pembaca layar ikut tahu
+new MutationObserver(list => list.forEach(({ target: el }) => {
+  if (el.hasAttribute?.('aria-pressed') && !el.classList.contains('habit-check')) {
+    el.setAttribute('aria-pressed', String(el.classList.contains('selected') || el.classList.contains('active')));
+  }
+})).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
 
 function init() {
+  setDefaultDates();
+  initTheme();
+  enhanceAllSelects();
+  loadProdLocal();
   setupEventListeners();
-  startReminderScheduler();
-  const dateEl = $("hero-date");
-  if (dateEl) dateEl.textContent = new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  if ($("footer-julie"))  $("footer-julie").textContent  = NAMES.julie.nick;
-  if ($("footer-reroll")) $("footer-reroll").textContent = NAMES.abyant.nick;
-  const initial = tabFromHash(); if (initial) activateTab(initial, { updateHash: false });
-
-  onAuthStateChanged(auth, (user) => {
+  setupProductivityEvents();
+  onAuthStateChanged(auth, async user => {
     if (user) {
-      currentUser = user;
-      $("authGate")?.classList.add("hidden");
-      $("appRoot")?.classList.remove("hidden");
-      updateTopbarUser(user);
-      setSync("loading");
-      renderAll();
-      initFirestoreSync();
+      state.user = user;
+      startNotifications();
+      const ref = doc(db, 'users', user.uid);
+      getDoc(ref).then(snap => {
+        if (!snap.exists()) setDoc(ref, { email: user.email, displayName: user.displayName || user.email.split('@')[0], workspaceIds: [], createdAt: serverTimestamp() });
+      });
+      await loadProdFromCloud();
+      rollOverDay();
+      showDashboardView();
+      refreshProductivityUI();
     } else {
-      currentUser = null;
-      if (unsubRoom) { unsubRoom(); unsubRoom = null; }
-      $("appRoot")?.classList.add("hidden");
-      $("authGate")?.classList.remove("hidden");
+      stopHeartbeat();
+      unsubscribers.forEach(u => u()); unsubscribers = [];
+      stopNotifications();
+      state = { user: null, workspaceId: null, workspaceName: null, role: null, workerName: null, driveLink: '', members: [], tasks: [], divisions: [] };
+      showAuthView();
     }
   });
 }
-
 init();
