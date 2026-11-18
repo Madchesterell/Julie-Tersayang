@@ -1,6 +1,6 @@
 /* =========================================================
-MILOLOO & REROLL, Ruang Privat Berdua
-Firebase v10 Modular SDK · Auth + onSnapshot · setDoc
+   MILOLOO & REROLL, Ruang Privat Berdua
+   Firebase v10 Modular SDK · Auth + onSnapshot · setDoc
 ========================================================= */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import {
@@ -39,12 +39,12 @@ const NAMES = {
 };
 
 const MOODS = [
-  { key: "happy",    emoji: "", label: "Happy",         msg: "Senyum terus hari ini! " },
-  { key: "capek",    emoji: "", label: "Capek",         msg: "Istirahat dulu, jangan dipaksa. Peluk jauh. " },
-  { key: "kangen",   emoji: "", label: "Kangen",        msg: "Sama. Ayo telepon sebentar nanti. " },
-  { key: "sensitif", emoji: "", label: "Sensitif",      msg: "Pelan-pelan ya. Aku dengerin, nggak akan nyela. " },
-  { key: "semangat", emoji: "", label: "Semangat",      msg: "Gas! Aku dukung penuh hari ini. " },
-  { key: "pelukan",  emoji: "", label: "Butuh Pelukan", msg: "Anggap ini pelukan paling lama. " }
+  { key: "happy",    emoji: "😊", label: "Happy",         msg: "Senyum terus hari ini! Semangat ya." },
+  { key: "capek",    emoji: "😮‍💨", label: "Capek",         msg: "Istirahat dulu, jangan dipaksa. Peluk jauh." },
+  { key: "kangen",   emoji: "🥺", label: "Kangen",        msg: "Sama. Ayo telepon sebentar nanti ya." },
+  { key: "sensitif", emoji: "🫧", label: "Sensitif",      msg: "Pelan-pelan ya. Aku dengerin, nggak akan nyela." },
+  { key: "semangat", emoji: "🔥", label: "Semangat",      msg: "Gas! Aku dukung penuh apapun yang kamu kerjakan." },
+  { key: "pelukan",  emoji: "🫂", label: "Butuh Pelukan", msg: "Anggap ini pelukan paling hangat dan lama." }
 ];
 
 const AUDIO_EXT = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|webm)(\?|#|$)/i;
@@ -56,7 +56,7 @@ const iso = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${p
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
 }[c]));
-const ICON_TEXT = { edit: "Ubah", trash: "Hapus", save: "Simpan", x: "Batalkan", undo: "", play: "Putar", check: "", link: "", pin: "" };
+const ICON_TEXT = { edit: "✏️", trash: "🗑️", save: "💾", x: "✕", undo: "↩️", play: "▶" };
 const icon = (name) => ICON_TEXT[name] ?? "";
 
 function httpUrl(u) {
@@ -83,7 +83,7 @@ function toast(msg, type = "info") {
   }, 3200);
 }
 
-/* ───── DIALOG (pengganti alert/confirm) ───── */
+/* ───── DIALOG ───── */
 let dialogResolve = null;
 function openDialog(o) {
   return new Promise((resolve) => {
@@ -136,7 +136,7 @@ function pop(freq = 520) {
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
     osc.connect(gain); gain.connect(audioCtx.destination);
     osc.start(); osc.stop(audioCtx.currentTime + 0.1);
-  } catch (e) { /* audio tidak tersedia */ }
+  } catch (e) {}
 }
 
 const canvas = $("confetti-canvas");
@@ -148,7 +148,7 @@ resizeCanvas();
 
 function launchConfetti(amount = 70) {
   if (reduced || !ctx) return;
-  const colors = ["#2B3FFF", "#FFD600", "#FF4FA3", "#0A0A0A", "#FFFFFF"];
+  const colors = ["#F43F5E", "#FACC15", "#38BDF8", "#8B5CF6", "#FFFFFF"];
   for (let i = 0; i < amount; i++) {
     particles.push({
       x: window.innerWidth / 2 + (Math.random() - 0.5) * 260,
@@ -189,7 +189,7 @@ function applyTheme(t) {
   document.documentElement.setAttribute("data-theme", t);
   try { localStorage.setItem(THEME_KEY, t); } catch {}
   const btn = $("theme-toggle");
-  if (btn) { btn.textContent = t === "dark" ? "Mode siang" : "Mode malam"; btn.setAttribute("aria-pressed", String(t === "dark")); }
+  if (btn) { btn.textContent = t === "dark" ? "Mode Siang" : "Mode Malam"; btn.setAttribute("aria-pressed", String(t === "dark")); }
 }
 try { currentTheme = localStorage.getItem(THEME_KEY) || "light"; } catch {}
 applyTheme(currentTheme);
@@ -221,11 +221,11 @@ function onTabKey(e) {
   activateTab(tabs[(next + tabs.length) % tabs.length], { focus: true });
 }
 
-/* ───── STATUS SINKRON (memuat, siap, galat) ───── */
+/* ───── STATUS SINKRON ───── */
 let syncState = "loading";
 const SYNC_TEXT = {
   loading: "Memuat catatan dari Firestore…",
-  error: "Tidak tersambung ke Firestore. Perubahan baru belum tersimpan di perangkat lain."
+  error: "Tidak tersambung ke Firestore. Perubahan baru belum tersimpan."
 };
 function setSync(state) {
   syncState = state;
@@ -234,17 +234,9 @@ function setSync(state) {
     el.textContent = state === "ready" ? "" : SYNC_TEXT[state];
     el.classList.toggle("is-error", state === "error");
   }
-  applySyncHints();
-}
-function applySyncHints() {
-  if (syncState === "ready") return;
-  document.querySelectorAll(".empty-hint").forEach((el) => {
-    el.classList.add("state");
-    el.textContent = syncState === "loading" ? "Memuat…" : "Belum bisa memuat. Periksa koneksi lalu muat ulang halaman.";
-  });
 }
 
-/* DEFAULT STATE (KOSONG, user mulai dari nol) */
+/* DEFAULT STATE */
 function defaults() {
   return {
     version: 2,
@@ -310,7 +302,7 @@ function updateQuota() {
   const kb = docBytes() / 1024;
   const warn = kb > 750;
   el.className = "text-sm " + (warn ? "quota-warn" : "text-muted");
-  el.textContent = `Penyimpanan terpakai: ${kb.toFixed(1)} KB${warn ? ", mendekati batas 1 MB per dokumen Firestore" : ""}`;
+  el.textContent = `Penyimpanan terpakai: ${kb.toFixed(1)} KB${warn ? ", mendekati batas 1 MB" : ""}`;
 }
 async function save() {
   updateQuota();
@@ -320,7 +312,7 @@ async function save() {
     return true;
   } catch (e) {
     console.error("Gagal menyimpan ke Firestore:", e);
-    toast("Gagal menyinkronkan ke Firestore. Periksa koneksi atau konfigurasi.", "warn");
+    toast("Gagal menyinkronkan ke Firestore.", "warn");
     return false;
   }
 }
@@ -331,9 +323,7 @@ function renderScore() {
   if (ec) ec.textContent = S.meta.hugs;
 }
 
-/* RENDER FITUR */
-
-/* 01 EVENTS */
+/* ───── RENDER FITUR ───── */
 function nextOccurrence(isoDate) {
   const today = new Date(iso() + "T00:00:00");
   const d = new Date(isoDate + "T00:00:00");
@@ -353,7 +343,7 @@ function renderEvents() {
     if (ev.id === editingEventId) {
       return `<li class="editing">
         <form class="edit-panel" data-form="event-edit" data-id="${ev.id}">
-          <div class="field"><label>Nama acara</label><input type="text" id="ev-name-${ev.id}" value="${esc(ev.name)}" required /></div>
+          <div class="field"><label>Nama Acara</label><input type="text" id="ev-name-${ev.id}" value="${esc(ev.name)}" required /></div>
           <div class="field"><label>Tanggal</label><input type="date" id="ev-date-${ev.id}" value="${esc(ev.date)}" required /></div>
           <div class="edit-actions">
             <button class="btn btn-primary btn-sm" type="submit">${icon("save")} Simpan</button>
@@ -362,7 +352,7 @@ function renderEvents() {
         </form></li>`;
     }
     const days = nextOccurrence(ev.date);
-    const chip = days === null ? "" : `<span class="chip-due">${days === 0 ? "Hari ini" : "H-" + days}</span>`;
+    const chip = days === null ? "" : `<span class="chip-due">${days === 0 ? "Hari Ini!" : "H-" + days}</span>`;
     return `<li>
       <div class="row-main"><span class="row-title">${esc(ev.name)}</span><span class="row-sub">Berulang tiap tahun, ${esc(fmtFull(ev.date))}</span></div>
       <strong class="row-date">${esc(fmtDay(ev.date))}</strong>${chip}
@@ -373,7 +363,6 @@ function renderEvents() {
   }).join("");
 }
 
-/* 01 RED DAY */
 function redComputed() {
   const r = S.redDay;
   const len = Math.min(45, Math.max(20, Number(r.cycleLength) || 28));
@@ -392,7 +381,7 @@ function renderRed() {
   set("red-start-date", fmtFull(c.nextStart));
   set("red-cycle-day", `Hari ke-${c.cycleDay} dari ${c.len}`);
   set("red-cycle-len", `${c.len} hari`);
-  set("red-status", c.status + (c.status === "Perhatian & Sayang Ekstra" ? " " : c.status === "Butuh Pelukan" ? " " : " "));
+  set("red-status", c.status);
 }
 function openRedEdit() {
   const r = S.redDay;
@@ -410,7 +399,6 @@ function closeRedEdit() {
   $("red-view")?.classList.remove("hidden");
 }
 
-/* 02 MOOD */
 function renderMoodTabs() {
   document.querySelectorAll(".sub-tab").forEach((t) => {
     const on = t.dataset.person === moodPerson;
@@ -445,8 +433,8 @@ function renderMood() {
   const jm = MOODS.find((m) => m.key === S.moods.julie.mood);
   const am = MOODS.find((m) => m.key === S.moods.abyant.mood);
   const setT = (id, v) => { const el = $(id); if (el) el.textContent = v; };
-  setT("hero-mood-julie", jm ? jm.label : "Belum diisi");
-  setT("hero-mood-abyant", am ? am.label : "Belum diisi");
+  setT("hero-mood-julie", jm ? `${jm.emoji} ${jm.label}` : "Belum diisi");
+  setT("hero-mood-abyant", am ? `${am.emoji} ${am.label}` : "Belum diisi");
   setT("hero-note-julie", S.moods.julie.note || "Belum ada pesan hari ini.");
   setT("hero-note-abyant", S.moods.abyant.note || "Belum ada pesan hari ini.");
 }
@@ -454,11 +442,10 @@ function pushMoodHistory(person) {
   const d = S.moods[person];
   const m = MOODS.find((x) => x.key === d.mood);
   const today = iso();
-  const entry = { date: today, mood: d.mood, emoji: m ? m.emoji : "•", label: m ? m.label : "belum diisi", note: d.note || "" };
+  const entry = { date: today, mood: d.mood, emoji: m ? m.emoji : "•", label: m ? m.label : "belum", note: d.note || "" };
   d.history = [entry, ...(d.history || []).filter((h) => h.date !== today)].slice(0, 14);
 }
 
-/* 03 GALLERY */
 function renderGallery() {
   const grid = $("gallery-grid"); if (!grid) return;
   if (!S.gallery.length) { grid.innerHTML = `<p class="empty-hint">Belum ada momen tersimpan.</p>`; return; }
@@ -474,7 +461,7 @@ function compressImage(file) {
     reader.onerror = () => reject(new Error("Gagal membaca berkas."));
     reader.onload = () => {
       const img = new Image();
-      img.onerror = () => reject(new Error("Berkas bukan gambar yang valid."));
+      img.onerror = () => reject(new Error("Berkas bukan gambar valid."));
       img.onload = () => {
         const max = 960;
         let { width, height } = img;
@@ -493,7 +480,6 @@ function compressImage(file) {
   });
 }
 
-/* 04 TIME PICKER */
 const tp = { hour: 8, minute: 0, open: false };
 function buildTimePicker() {
   const h = $("tp-hours"), m = $("tp-minutes"); if (!h || !m) return;
@@ -519,8 +505,6 @@ function openTimePicker() {
   $("timepicker-panel")?.classList.remove("hidden");
   $("rem-time-display")?.setAttribute("aria-expanded", "true");
   paintTimePicker();
-  $("tp-hours")?.querySelector(".tp-item.active")?.scrollIntoView({ block: "center" });
-  $("tp-minutes")?.querySelector(".tp-item.active")?.scrollIntoView({ block: "center" });
 }
 function closeTimePicker() {
   tp.open = false;
@@ -532,11 +516,9 @@ function applyTimePicker() {
   if ($("rem-time")) $("rem-time").value = val;
   if ($("rem-time-label")) $("rem-time-label").textContent = val;
   closeTimePicker();
-  $("rem-time-display")?.focus();
   pop(520);
 }
 
-/* 04 REMINDERS */
 function renderReminders() {
   const ul = $("reminder-list"); if (!ul) return;
   const cnt = $("reminders-count"); if (cnt) cnt.textContent = S.reminders.length;
@@ -555,7 +537,6 @@ function wibClockHM() {
   const wib = new Date(utcMs + 7 * 3600 * 1000);
   return `${pad(wib.getUTCHours())}:${pad(wib.getUTCMinutes())}`;
 }
-
 function startReminderScheduler() {
   setInterval(() => {
     const nowHM = wibClockHM();
@@ -565,7 +546,7 @@ function startReminderScheduler() {
       const fireKey = `${todayKey}|${r.id}`;
       if (reminderFiredToday.has(fireKey)) return;
       reminderFiredToday.add(fireKey);
-      toast(`${r.text}`, "info");
+      toast(`⏰ ${r.text}`, "info");
       pop(660);
       launchConfetti(24);
     });
@@ -573,11 +554,9 @@ function startReminderScheduler() {
   }, 30000);
 }
 
-/* 05 & 10 TASK LISTS */
 function taskRow(item, kind) {
   const cls = item.state === "done" ? "is-done" : item.state === "cancelled" ? "is-cancelled" : "";
-  const prefix = kind === "dream" ? "" : "";
-  const checkIco = item.state === "done" ? icon("check") : "";
+  const checkIco = item.state === "done" ? "✅ " : "";
   const tag = item.state === "cancelled" ? `<span class="tag-cancelled">Dibatalkan</span>` : "";
   let actions = "";
   if (item.state === "active") {
@@ -587,10 +566,10 @@ function taskRow(item, kind) {
       <button class="btn-icon btn-sm" type="button" data-act="${kind}-del" data-id="${item.id}" aria-label="Hapus">${icon("trash")}</button>`;
   } else {
     actions = `
-      <button class="btn btn-secondary btn-sm" type="button" data-act="${kind}-restore" data-id="${item.id}">${icon("undo")} Aktifkan lagi</button>
+      <button class="btn btn-secondary btn-sm" type="button" data-act="${kind}-restore" data-id="${item.id}">${icon("undo")} Aktifkan</button>
       <button class="btn-icon btn-sm" type="button" data-act="${kind}-del" data-id="${item.id}" aria-label="Hapus">${icon("trash")}</button>`;
   }
-  return `<li class="todo-item ${cls}"><span class="todo-text">${checkIco}${prefix}${esc(item.text)} ${tag}</span><div class="todo-actions">${actions}</div></li>`;
+  return `<li class="todo-item ${cls}"><span class="todo-text">${checkIco}${esc(item.text)} ${tag}</span><div class="todo-actions">${actions}</div></li>`;
 }
 function renderTodos() {
   const ul = $("todo-list"); if (!ul) return;
@@ -611,22 +590,21 @@ function bindTaskList(listId, getArr, kind, rerender) {
       item.state = "done"; save(); rerender(); pop(480);
       launchConfetti(kind === "dream" ? 90 : 40);
       addScore(kind === "dream" ? 30 : 5);
-      toast(kind === "dream" ? "Impian terwujud " : "Tugas selesai ", "success");
+      toast(kind === "dream" ? "Impian terwujud! 🎉" : "Tugas selesai! ✨", "success");
     } else if (act === `${kind}-cancel`) {
       item.state = "cancelled"; save(); rerender(); pop(400);
-      toast("Dibatalkan, baris tetap tercatat");
+      toast("Dibatalkan.");
     } else if (act === `${kind}-restore`) {
       item.state = "active"; save(); rerender(); pop(520);
     } else if (act === `${kind}-del`) {
-      if (!await askConfirm(`Hapus permanen "${item.text}"?`, { title: "Hapus permanen", confirmText: "Hapus", danger: true })) return;
+      if (!await askConfirm(`Hapus permanen "${item.text}"?`, { title: "Hapus", confirmText: "Hapus", danger: true })) return;
       const next = arr.filter((x) => x.id !== item.id);
       if (kind === "todo") S.todos = next; else S.dreams = next;
-      save(); rerender(); toast("Dihapus permanen");
+      save(); rerender(); toast("Dihapus.");
     }
   });
 }
 
-/* 06 CAPSULES */
 function renderCapsules() {
   const grid = $("capsule-grid"); if (!grid) return;
   const cnt = $("capsules-count"); if (cnt) cnt.textContent = S.capsules.length;
@@ -635,10 +613,10 @@ function renderCapsules() {
   grid.innerHTML = S.capsules.map((c) => {
     const open = today >= c.openDate;
     return `<article class="capsule-card ${open ? "is-open" : ""}">
-      <h4>${open ? "" : ""} ${esc(c.title)}</h4>
+      <h4>${open ? "💌 " : "🔒 "} ${esc(c.title)}</h4>
       <span class="cap-date">${open ? "Terbuka sejak" : "Buka pada"} ${esc(fmtFull(c.openDate))}</span>
       <div class="capsule-content ${open ? "" : "locked"}">${open ? esc(c.msg) : "Terkunci sampai tanggalnya tiba."}</div>
-      <div class="card-actions">
+      <div class="card-actions mt-16">
         <button class="btn-icon btn-sm" type="button" data-act="cap-edit" data-id="${c.id}" aria-label="Ubah">${icon("edit")}</button>
         <button class="btn-icon btn-sm" type="button" data-act="cap-del" data-id="${c.id}" aria-label="Hapus">${icon("trash")}</button>
       </div>
@@ -646,7 +624,6 @@ function renderCapsules() {
   }).join("");
 }
 
-/* 07 SONGS */
 function renderSongs() {
   const list = $("song-list"); if (!list) return;
   const cnt = $("songs-count"); if (cnt) cnt.textContent = `${S.songs.length} lagu`;
@@ -656,7 +633,7 @@ function renderSongs() {
     const main = isAudio
       ? `<button class="song-play" type="button" data-act="song-play" data-id="${s.id}" aria-label="Putar">${icon("play")}<span class="song-meta"><strong>${esc(s.title)}</strong>${s.note ? `<span>${esc(s.note)}</span>` : ""}</span></button>`
       : `<span class="song-play"><span class="song-meta"><strong>${esc(s.title)}</strong>${s.note ? `<span>${esc(s.note)}</span>` : ""}</span></span>`;
-    const linkBtn = isAudio ? "" : `<a class="song-link" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${icon("link")} Buka</a>`;
+    const linkBtn = isAudio ? "" : `<a class="btn btn-secondary btn-sm" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Buka Tautan</a>`;
     return `<div class="song-row ${currentSongId === s.id ? "active" : ""}">
       ${main}
       <span class="kind-tag">${isAudio ? "Audio" : "Tautan"}</span>
@@ -669,7 +646,7 @@ function renderSongs() {
 function playSong(s) {
   currentSongId = s.id;
   if ($("now-playing-title")) $("now-playing-title").textContent = s.title;
-  if ($("now-playing-desc")) $("now-playing-desc").textContent = s.note ? `"${s.note}"` : "Tidak ada catatan.";
+  if ($("now-playing-desc")) $("now-playing-desc").textContent = s.note ? `"${s.note}"` : "Diputar sekarang.";
   $("audio-error")?.classList.add("hidden");
   const player = $("audio-player");
   if (player) {
@@ -684,7 +661,6 @@ function showAudioError(msg) {
   $("vinyl-disc")?.classList.remove("spinning");
 }
 
-/* 08 PLACES */
 function renderPlaces() {
   const grid = $("places-grid"); if (!grid) return;
   if (!S.places.length) { grid.innerHTML = `<p class="empty-hint">Belum ada tempat berkesan.</p>`; return; }
@@ -692,9 +668,9 @@ function renderPlaces() {
     if (p.id === editingPlaceId) {
       return `<article class="place-card editing">
         <form class="stacked-form" data-form="place-edit" data-id="${p.id}">
-          <div class="field"><label>Nama tempat</label><input type="text" id="pl-name-${p.id}" value="${esc(p.name)}" required /></div>
-          <div class="field"><label>Lokasi / alamat</label><input type="text" id="pl-loc-${p.id}" value="${esc(p.location)}" required /></div>
-          <div class="field"><label>Deskripsi kenangan</label><textarea id="pl-mem-${p.id}" rows="3" required>${esc(p.memory)}</textarea></div>
+          <div class="field"><label>Nama Tempat</label><input type="text" id="pl-name-${p.id}" value="${esc(p.name)}" required /></div>
+          <div class="field"><label>Lokasi / Alamat</label><input type="text" id="pl-loc-${p.id}" value="${esc(p.location)}" required /></div>
+          <div class="field"><label>Kenangan</label><textarea id="pl-mem-${p.id}" rows="3" required>${esc(p.memory)}</textarea></div>
           <div class="edit-actions">
             <button class="btn btn-primary btn-sm" type="submit">${icon("save")} Simpan</button>
             <button class="btn btn-secondary btn-sm" type="button" data-act="place-cancel">Batal</button>
@@ -702,12 +678,10 @@ function renderPlaces() {
         </form></article>`;
     }
     return `<article class="place-card">
-      <div class="place-head">
-        <span class="place-pin">${icon("pin")}</span>
-        <div><div class="place-name">${esc(p.name)}</div><div class="place-loc">${esc(p.location)}</div></div>
-      </div>
+      <div class="place-name">${esc(p.name)}</div>
+      <div class="place-loc">📍 ${esc(p.location)}</div>
       <p class="place-memory">${esc(p.memory)}</p>
-      <div class="card-actions">
+      <div class="card-actions mt-16">
         <button class="btn-icon btn-sm" type="button" data-act="place-edit" data-id="${p.id}" aria-label="Ubah">${icon("edit")}</button>
         <button class="btn-icon btn-sm" type="button" data-act="place-del" data-id="${p.id}" aria-label="Hapus">${icon("trash")}</button>
       </div>
@@ -715,7 +689,6 @@ function renderPlaces() {
   }).join("");
 }
 
-/* 09 COUPONS */
 function renderCoupons() {
   const avail = $("coupons-grid"), hist = $("coupons-history");
   if ($("coupons-available-count")) $("coupons-available-count").textContent = S.coupons.available.length;
@@ -723,29 +696,29 @@ function renderCoupons() {
   if (avail) {
     avail.innerHTML = S.coupons.available.length
       ? S.coupons.available.map((c) => `<article class="coupon-card">
-          <h4>${esc(c.title)}</h4>
+          <h4>🎟️ ${esc(c.title)}</h4>
           <p>${esc(c.desc)}</p>
           <div class="coupon-actions">
-            <button class="btn btn-primary btn-sm" type="button" data-act="cp-claim" data-id="${c.id}">Klaim kupon</button>
+            <button class="btn btn-primary btn-sm" type="button" data-act="cp-claim" data-id="${c.id}">Klaim Kupon</button>
             <button class="btn-icon btn-sm" type="button" data-act="cp-edit" data-id="${c.id}" aria-label="Ubah">${icon("edit")}</button>
             <button class="btn-icon btn-sm" type="button" data-act="cp-del" data-id="${c.id}" aria-label="Hapus">${icon("trash")}</button>
           </div>
         </article>`).join("")
-      : `<p class="empty-hint">Semua kupon sudah diklaim. Buat kupon baru di atas.</p>`;
+      : `<p class="empty-hint">Semua kupon sudah diklaim.</p>`;
   }
   if (hist) {
     hist.innerHTML = S.coupons.claimed.length
       ? [...S.coupons.claimed].sort((a, b) => (b.claimedAt || 0) - (a.claimedAt || 0)).map((c) => `<article class="coupon-card claimed">
-          <span class="badge-claimed">${icon("check")} Sudah diklaim</span>
+          <span class="badge-claimed">✓ Sudah Diklaim</span>
           <h4>${esc(c.title)}</h4>
           <p>${esc(c.desc)}</p>
           <span class="claimed-at">Diklaim ${esc(fmtStamp(c.claimedAt))}</span>
           <div class="coupon-actions">
-            <button class="btn btn-secondary btn-sm" type="button" data-act="cp-undo" data-id="${c.id}">${icon("undo")} Batalkan klaim</button>
+            <button class="btn btn-secondary btn-sm" type="button" data-act="cp-undo" data-id="${c.id}">${icon("undo")} Batalkan</button>
             <button class="btn-icon btn-sm" type="button" data-act="cp-del-claimed" data-id="${c.id}" aria-label="Hapus">${icon("trash")}</button>
           </div>
         </article>`).join("")
-      : `<p class="empty-hint">Belum ada kupon yang diklaim.</p>`;
+      : `<p class="empty-hint">Belum ada kupon diklaim.</p>`;
   }
 }
 async function couponAction(e) {
@@ -756,14 +729,14 @@ async function couponAction(e) {
     const [c] = S.coupons.available.splice(i, 1);
     S.coupons.claimed.push({ ...c, claimedAt: Date.now() });
     save(); renderCoupons(); pop(750); launchConfetti(80); addScore(25);
-    toast("Kupon diklaim ", "success");
+    toast("Kupon berhasil diklaim! 🎫", "success");
   } else if (act === "cp-undo") {
     const i = S.coupons.claimed.findIndex((x) => x.id === id); if (i < 0) return;
     const [c] = S.coupons.claimed.splice(i, 1);
     delete c.claimedAt;
     S.coupons.available.push(c);
     save(); renderCoupons(); pop(500);
-    toast("Klaim dibatalkan, kupon kembali tersedia");
+    toast("Klaim dibatalkan.");
   } else if (act === "cp-edit") {
     const c = S.coupons.available.find((x) => x.id === id); if (!c) return;
     if ($("coupon-edit-id"))    $("coupon-edit-id").value    = c.id;
@@ -773,14 +746,13 @@ async function couponAction(e) {
   } else if (act === "cp-del" || act === "cp-del-claimed") {
     const pool = act === "cp-del" ? S.coupons.available : S.coupons.claimed;
     const c = pool.find((x) => x.id === id);
-    if (!await askConfirm(`Hapus kupon "${c?.title}"?`, { title: "Hapus kupon", confirmText: "Hapus", danger: true })) return;
+    if (!await askConfirm(`Hapus kupon "${c?.title}"?`, { title: "Hapus", confirmText: "Hapus", danger: true })) return;
     if (act === "cp-del") S.coupons.available = pool.filter((x) => x.id !== id);
     else                  S.coupons.claimed   = pool.filter((x) => x.id !== id);
-    save(); renderCoupons(); toast("Kupon dihapus");
+    save(); renderCoupons(); toast("Dihapus.");
   }
 }
 
-/* ───── RENDER ALL ───── */
 function renderAll() {
   renderScore();
   renderEvents();
@@ -796,10 +768,8 @@ function renderAll() {
   renderCoupons();
   renderDreams();
   updateQuota();
-  applySyncHints();
 }
 
-/* ───── FIRESTORE SYNC ───── */
 async function initFirestoreSync() {
   try {
     const snap = await getDoc(ROOM_REF);
@@ -807,7 +777,7 @@ async function initFirestoreSync() {
       await setDoc(ROOM_REF, { ...S, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
     }
   } catch (err) {
-    console.warn("Inisialisasi dokumen Firestore:", err);
+    console.warn("Inisialisasi Firestore:", err);
     setSync("error");
   }
   if (unsubRoom) unsubRoom();
@@ -821,15 +791,13 @@ async function initFirestoreSync() {
     lastSyncedFingerprint = incoming;
     renderAll();
   }, (err) => {
-    console.error("Listener real-time terganggu:", err);
+    console.error("Listener error:", err);
     setSync("error");
-    toast("Koneksi real-time terganggu. Periksa konfigurasi Firebase.", "warn");
   });
 }
 
-/* AUTH (seperti Akasha) */
+/* AUTHENTICATION */
 let currentUser = null;
-
 function showAuthError(msg) {
   const el = $("authError"); if (!el) return;
   el.textContent = msg; el.classList.remove("hidden");
@@ -840,8 +808,8 @@ function toggleAuthMode() {
   const isLogin = !$("loginForm")?.classList.contains("hidden");
   $("loginForm")?.classList.toggle("hidden", isLogin);
   $("registerForm")?.classList.toggle("hidden", !isLogin);
-  if ($("authTitle"))    $("authTitle").innerHTML    = isLogin ? 'Buat akun' : 'Masuk';
-  if ($("authSubtitle")) $("authSubtitle").textContent = isLogin ? "Daftar dengan email yang akan kalian pakai bersama." : "Pakai email yang kalian daftarkan.";
+  if ($("authTitle"))    $("authTitleinnerHTML") = isLogin ? 'Buat Akun' : 'Masuk Buku';
+  if ($("authSubtitle")) $("authSubtitle").textContent = isLogin ? "Daftar dengan email bersama." : "Gunakan akun yang telah terdaftar.";
   if ($("authToggleText")) $("authToggleText").textContent = isLogin ? "Sudah punya akun? Masuk" : "Belum punya akun? Daftar";
   clearAuthError();
 }
@@ -857,16 +825,9 @@ async function handleLogin(e) {
     await setPersistence(auth, $("rememberMe")?.checked ? browserLocalPersistence : browserSessionPersistence);
     await signInWithEmailAndPassword(auth, email, pw);
   } catch (err) {
-    const msg = {
-      "auth/invalid-credential": "Email atau kata sandi salah.",
-      "auth/invalid-email": "Format email tidak valid.",
-      "auth/too-many-requests": "Terlalu banyak percobaan. Coba lagi nanti.",
-      "auth/user-disabled": "Akun ini dinonaktifkan.",
-      "auth/user-not-found": "Akun tidak ditemukan."
-    }[err.code] || "Gagal masuk: " + (err.message || err.code);
-    showAuthError(msg);
+    showAuthError("Email atau kata sandi salah.");
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Buka buku"; }
+    if (btn) { btn.disabled = false; btn.textContent = "Buka Buku Sekarang"; }
   }
 }
 
@@ -882,45 +843,36 @@ async function handleRegister(e) {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, pw);
     if (name) await updateProfile(cred.user, { displayName: name });
-    await setDoc(doc(db, "users", cred.user.uid), {
-      email, displayName: name, createdAt: serverTimestamp()
-    });
+    await setDoc(doc(db, "users", cred.user.uid), { email, displayName: name, createdAt: serverTimestamp() });
   } catch (err) {
-    const msg = {
-      "auth/email-already-in-use": "Email sudah terdaftar. Silakan masuk.",
-      "auth/invalid-email": "Format email tidak valid.",
-      "auth/weak-password": "Kata sandi terlalu lemah."
-    }[err.code] || "Gagal daftar: " + (err.message || err.code);
-    showAuthError(msg);
+    showAuthError("Gagal mendaftar: " + err.message);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Buat akun"; }
+    if (btn) { btn.disabled = false; btn.textContent = "Buat Akun Baru"; }
   }
 }
 
 async function handleLogout() {
   if (!await askConfirm("Keluar dari ruang privat ini?", { title: "Keluar", confirmText: "Keluar", danger: true })) return;
-  try { await signOut(auth); } catch (e) { console.warn(e); }
+  try { await signOut(auth); } catch (e) {}
 }
 
 async function handleGoogleLogin() {
   try {
     await signInWithPopup(auth, new GoogleAuthProvider());
   } catch (err) {
-    if (err.code !== "auth/popup-closed-by-user") {
-      await showAlert("Gagal: " + (err.code || err.message), "Login Google gagal");
-    }
+    if (err.code !== "auth/popup-closed-by-user") showAlert("Login Google gagal.", "Gagal");
   }
 }
 
 async function handleForgotPassword(e) {
   e.preventDefault();
   const email = $("loginEmail")?.value.trim();
-  if (!email) return showAlert("Isi alamat email terlebih dahulu.", "Lupa sandi");
+  if (!email) return showAlert("Isi alamat email terlebih dahulu.", "Lupa Sandi");
   try {
     await sendPasswordResetEmail(auth, email);
-    await showAlert("Tautan reset kata sandi sudah dikirim ke email Anda.", "Email terkirim");
+    showAlert("Tautan reset kata sandi sudah dikirim ke email.", "Terkirim");
   } catch (err) {
-    await showAlert("Gagal: " + (err.code || err.message), "Lupa sandi");
+    showAlert("Gagal mengirim email reset.", "Error");
   }
 }
 
@@ -936,30 +888,26 @@ async function handleAccountUpdate(e) {
       await setDoc(doc(db, "users", currentUser.uid), { displayName: newName }, { merge: true });
     }
     $("accountModal")?.classList.add("hidden");
-    toast("Akun diperbarui", "success");
+    toast("Akun diperbarui!", "success");
   } catch (err) {
-    await showAlert(err.code === "auth/requires-recent-login" ? "Keluar lalu masuk lagi untuk mengganti kata sandi." : "Gagal: " + err.message);
+    showAlert("Gagal memperbarui akun. Silakan login ulang jika mengganti sandi.");
   }
 }
 
 function updateTopbarUser(user) {
   if (!user) return;
   const name = user.displayName || user.email?.split("@")[0] || "Pengguna";
-  const initials = name.split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map((x) => x[0].toUpperCase()).join("");
-  if ($("topbarUserName"))   $("topbarUserName").textContent   = name;
-  if ($("topbarUserAvatar")) $("topbarUserAvatar").textContent = initials || "MR";
+  if ($("topbarUserName")) $("topbarUserName").textContent = name;
 }
 
-/* SETUP LISTENERS */
 function on(id, ev, fn) {
   const el = typeof id === "string" ? $(id) : id;
-  if (!el) { console.warn("[on] Elemen tidak ditemukan:", id); return null; }
+  if (!el) return null;
   el.addEventListener(ev, fn);
   return el;
 }
 
 function setupEventListeners() {
-  // Auth
   on("loginForm",          "submit", handleLogin);
   on("registerForm",       "submit", handleRegister);
   on("authToggleLink",     "click",  (e) => { e.preventDefault(); toggleAuthMode(); });
@@ -968,7 +916,7 @@ function setupEventListeners() {
   on("btn-logout",         "click",  handleLogout);
   on("accountBtn",         "click",  () => {
     if (!currentUser) return;
-    if ($("accountName"))     $("accountName").value     = currentUser.displayName || currentUser.email?.split("@")[0] || "";
+    if ($("accountName"))     $("accountName").value     = currentUser.displayName || "";
     if ($("accountPassword")) $("accountPassword").value = "";
     openModal("accountModal");
   });
@@ -979,7 +927,7 @@ function setupEventListeners() {
     addScore(15);
     pop(650);
     launchConfetti(85);
-    toast("Pelukan terkirim secara real-time ", "success");
+    toast("Pelukan terkirim! 🤗", "success");
   });
 
   on("theme-toggle", "click", () => {
@@ -987,21 +935,19 @@ function setupEventListeners() {
     pop(440);
   });
 
-  // Tab navigasi
   document.querySelectorAll(".feat-tab").forEach((tab) => {
     on(tab, "click", () => activateTab(tab));
     tab.addEventListener("keydown", onTabKey);
   });
   window.addEventListener("hashchange", () => { const t = tabFromHash(); if (t) activateTab(t, { updateHash: false }); });
 
-  // EVENTS
   on("add-event-form", "submit", (e) => {
     e.preventDefault();
     const name = $("event-name")?.value.trim(), date = $("event-date")?.value;
     if (!name || !date) return;
     S.events.push({ id: uid(), name, date });
     save(); renderEvents(); e.target.reset(); pop(600); addScore(10);
-    toast("Hari spesial ditambahkan", "success");
+    toast("Hari spesial ditambahkan! 🎉", "success");
   });
   on("anniversary-list", "click", async (e) => {
     const btn = e.target.closest("[data-act]"); if (!btn) return;
@@ -1010,9 +956,9 @@ function setupEventListeners() {
     else if (act === "event-cancel") { editingEventId = null; renderEvents(); }
     else if (act === "event-del") {
       const ev = S.events.find((x) => x.id === id);
-      if (!await askConfirm(`Hapus "${ev?.name}"?`, { title: "Hapus acara", confirmText: "Hapus", danger: true })) return;
+      if (!await askConfirm(`Hapus "${ev?.name}"?`, { title: "Hapus", confirmText: "Hapus", danger: true })) return;
       S.events = S.events.filter((x) => x.id !== id);
-      save(); renderEvents(); toast("Acara dihapus");
+      save(); renderEvents(); toast("Dihapus.");
     }
   });
   on("anniversary-list", "submit", (e) => {
@@ -1024,10 +970,9 @@ function setupEventListeners() {
     const ev = S.events.find((x) => x.id === id);
     if (ev) { ev.name = name; ev.date = date; }
     editingEventId = null; save(); renderEvents(); pop(560);
-    toast("Acara diperbarui", "success");
+    toast("Diperbarui!", "success");
   });
 
-  // RED DAY
   on(document.querySelector('[data-act="red-edit"]'),   "click", openRedEdit);
   on(document.querySelector('[data-act="red-cancel"]'), "click", closeRedEdit);
   on("red-mode-input", "change", (e) => {
@@ -1036,7 +981,7 @@ function setupEventListeners() {
   on("red-edit-form", "submit", (e) => {
     e.preventDefault();
     const len = Number($("red-cycle-input")?.value);
-    if (!Number.isFinite(len) || len < 20 || len > 45) return showAlert("Panjang siklus harus antara 20 dan 45 hari.");
+    if (!Number.isFinite(len) || len < 20 || len > 45) return showAlert("Panjang siklus antara 20 dan 45 hari.");
     S.redDay = {
       lastStart:    $("red-date-input")?.value,
       cycleLength:  Math.round(len),
@@ -1044,15 +989,14 @@ function setupEventListeners() {
       manualStatus: $("red-manual-input")?.value
     };
     save(); renderRed(); closeRedEdit(); pop(540);
-    toast("Catatan siklus diperbarui", "success");
+    toast("Siklus diperbarui!", "success");
   });
   on("btn-log-red", "click", () => {
     S.redDay.lastStart = iso();
     save(); renderRed(); pop(540); launchConfetti(40);
-    toast("Tanggal mulai dicatat hari ini", "success");
+    toast("Tanggal mulai dicatat!", "success");
   });
 
-  // MOOD tabs & selector
   document.querySelectorAll(".sub-tab").forEach((t) => {
     on(t, "click", () => { moodPerson = t.dataset.person; renderMoodTabs(); renderMood(); pop(500); });
   });
@@ -1063,7 +1007,7 @@ function setupEventListeners() {
     d.updatedAt = Date.now();
     pushMoodHistory(moodPerson);
     save(); renderMood(); pop(580); addScore(5);
-    toast(`Mood ${NAMES[moodPerson].nick} tersinkronisasi real-time`, "success");
+    toast("Mood tersinkronisasi! ✨", "success");
   });
   on("mood-note-form", "submit", (e) => {
     e.preventDefault();
@@ -1072,41 +1016,35 @@ function setupEventListeners() {
     d.updatedAt = Date.now();
     pushMoodHistory(moodPerson);
     save(); renderMood(); pop(600);
-    toast("Pesan harian disimpan", "success");
+    toast("Pesan harian disimpan!", "success");
   });
 
-  // GALLERY
   on("gallery-form", "submit", async (e) => {
     e.preventDefault();
     const err = $("gallery-error"); err?.classList.add("hidden");
     const title = $("gallery-title")?.value.trim();
     const url = httpUrl($("gallery-img")?.value);
     const file = $("gallery-file")?.files[0];
-    if (!title) { if (err) { err.textContent = "Judul momen wajib diisi."; err.classList.remove("hidden"); } return; }
-    if (!url && !file) { if (err) { err.textContent = "Isi URL gambar atau pilih berkas."; err.classList.remove("hidden"); } return; }
+    if (!title) { if (err) { err.textContent = "Judul wajib diisi."; err.classList.remove("hidden"); } return; }
+    if (!url && !file) { if (err) { err.textContent = "Masukkan URL atau pilih berkas."; err.classList.remove("hidden"); } return; }
     let src = url;
     if (file) {
       if (!file.type.startsWith("image/")) { if (err) { err.textContent = "Berkas harus gambar."; err.classList.remove("hidden"); } return; }
       try { src = await compressImage(file); }
       catch (ex) { if (err) { err.textContent = ex.message; err.classList.remove("hidden"); } return; }
     }
-    if (docBytes() + src.length > 900 * 1024) {
-      if (err) { err.textContent = "Ukuran dokumen mendekati 1 MB. Gunakan URL atau hapus foto lama."; err.classList.remove("hidden"); }
-      return;
-    }
-    S.gallery.unshift({ id: uid(), title, src, standIn: /unsplash\.com/.test(url) });
+    S.gallery.unshift({ id: uid(), title, src });
     if (!await save()) { S.gallery.shift(); return; }
     renderGallery(); e.target.reset(); pop(620); addScore(10);
-    toast("Momen tersimpan secara real-time", "success");
+    toast("Momen tersimpan! 📸", "success");
   });
   on("gallery-grid", "click", async (e) => {
     const btn = e.target.closest('[data-act="gal-del"]'); if (!btn) return;
     if (!await askConfirm("Hapus momen ini?", { title: "Hapus", confirmText: "Hapus", danger: true })) return;
     S.gallery = S.gallery.filter((x) => x.id !== btn.dataset.id);
-    save(); renderGallery(); toast("Momen dihapus");
+    save(); renderGallery(); toast("Dihapus.");
   });
 
-  // TIME PICKER
   buildTimePicker();
   on("rem-time-display", "click", () => tp.open ? closeTimePicker() : openTimePicker());
   on("tp-hours",   "click", (e) => { const b = e.target.closest("[data-h]"); if (b) { tp.hour   = Number(b.dataset.h); paintTimePicker(); } });
@@ -1116,35 +1054,33 @@ function setupEventListeners() {
   on("tp-manual-apply", "click", () => {
     const v = $("tp-manual-input")?.value.trim();
     const m = v?.match(/^(\d{1,2})[:.](\d{1,2})$/);
-    if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return toast("Format waktu HH:MM, mis. 07:35", "warn");
+    if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return toast("Format HH:MM, misal 07:30", "warn");
     tp.hour = Number(m[1]); tp.minute = Number(m[2]);
     if ($("tp-manual-input")) $("tp-manual-input").value = "";
     applyTimePicker();
   });
   document.addEventListener("click", (e) => { if (tp.open && !e.target.closest("#timepicker")) closeTimePicker(); });
 
-  // REMINDERS
   on("reminder-form", "submit", (e) => {
     e.preventDefault();
     const err = $("reminder-error"); err?.classList.add("hidden");
     const text = $("rem-text")?.value.trim(), time = $("rem-time")?.value;
     if (!text) { if (err) { err.textContent = "Isi pengingat wajib diisi."; err.classList.remove("hidden"); } return; }
-    if (!/^\d{2}:\d{2}$/.test(time || "")) { if (err) { err.textContent = "Pilih waktu lewat pemilih waktu."; err.classList.remove("hidden"); } return; }
+    if (!/^\d{2}:\d{2}$/.test(time || "")) { if (err) { err.textContent = "Pilih waktu lewat pemilih."; err.classList.remove("hidden"); } return; }
     S.reminders.push({ id: uid(), text, time });
     save(); renderReminders();
     e.target.reset();
     if ($("rem-time")) $("rem-time").value = "";
     if ($("rem-time-label")) $("rem-time-label").textContent = "Pilih waktu";
-    pop(550); addScore(10); toast("Pengingat disimpan", "success");
+    pop(550); addScore(10); toast("Pengingat disimpan! ⏰", "success");
   });
   on("reminder-list", "click", async (e) => {
     const btn = e.target.closest('[data-act="rem-del"]'); if (!btn) return;
-    if (!await askConfirm("Hapus pengingat ini?", { title: "Hapus", confirmText: "Hapus", danger: true })) return;
+    if (!await askConfirm("Hapus pengingat?", { title: "Hapus", confirmText: "Hapus", danger: true })) return;
     S.reminders = S.reminders.filter((x) => x.id !== btn.dataset.id);
-    save(); renderReminders(); toast("Pengingat dihapus");
+    save(); renderReminders(); toast("Dihapus.");
   });
 
-  // TODOS & DREAMS
   bindTaskList("todo-list",  () => S.todos,  "todo",  renderTodos);
   bindTaskList("dream-list", () => S.dreams, "dream", renderDreams);
   on("todo-form",  "submit", (e) => {
@@ -1158,17 +1094,16 @@ function setupEventListeners() {
     const text = $("dream-input")?.value.trim(); if (!text) return;
     S.dreams.push({ id: uid(), text, state: "active" });
     save(); renderDreams(); e.target.reset(); pop(590); addScore(10);
-    toast("Impian ditambahkan", "success");
+    toast("Impian ditambahkan! ✨", "success");
   });
 
-  // CAPSULES
   on("capsule-form", "submit", (e) => {
     e.preventDefault();
     const title = $("capsule-title")?.value.trim(), msg = $("capsule-msg")?.value.trim(), openDate = $("capsule-date")?.value;
     if (!title || !msg || !openDate) return;
     S.capsules.push({ id: uid(), title, msg, openDate });
     save(); renderCapsules(); e.target.reset(); pop(620); launchConfetti(50);
-    toast("Kapsul waktu dikunci", "success");
+    toast("Kapsul waktu dikunci! 💌", "success");
   });
   on("capsule-grid", "click", async (e) => {
     const btn = e.target.closest("[data-act]"); if (!btn) return;
@@ -1182,7 +1117,7 @@ function setupEventListeners() {
     } else {
       if (!await askConfirm(`Hapus kapsul "${c.title}"?`, { title: "Hapus", confirmText: "Hapus", danger: true })) return;
       S.capsules = S.capsules.filter((x) => x.id !== c.id);
-      save(); renderCapsules(); toast("Kapsul dihapus");
+      save(); renderCapsules(); toast("Dihapus.");
     }
   });
   on("capsule-edit-form", "submit", (e) => {
@@ -1192,10 +1127,9 @@ function setupEventListeners() {
     c.openDate = $("capsule-edit-date")?.value;
     c.msg      = $("capsule-edit-msg")?.value.trim();
     save(); renderCapsules(); closeModal("capsule-modal"); pop(560);
-    toast("Kapsul diperbarui", "success");
+    toast("Diperbarui!", "success");
   });
 
-  // SONGS
   const player = $("audio-player"), vinyl = $("vinyl-disc");
   if (player) {
     const setPlaying = (on) => {
@@ -1205,23 +1139,22 @@ function setupEventListeners() {
     player.addEventListener("play",  () => setPlaying(true));
     player.addEventListener("pause", () => setPlaying(false));
     player.addEventListener("ended", () => setPlaying(false));
-    player.addEventListener("error", () => { if (player.src) showAudioError("Gagal memuat audio."); });
   }
   on("vinyl-toggle", "click", () => {
     if (!player) return;
-    if (player.paused) { if (player.src) player.play().catch(() => showAudioError("Pilih lagu lain.")); }
+    if (player.paused) { if (player.src) player.play().catch(() => showAudioError("Pilih lagu.")); }
     else player.pause();
   });
   on("song-form", "submit", (e) => {
     e.preventDefault();
     const err = $("song-error"); err?.classList.add("hidden");
     const title = $("song-title")?.value.trim(), url = httpUrl($("song-url")?.value);
-    if (!title) { if (err) { err.textContent = "Judul lagu wajib diisi."; err.classList.remove("hidden"); } return; }
-    if (!url)   { if (err) { err.textContent = "URL harus diawali http:// atau https://"; err.classList.remove("hidden"); } return; }
+    if (!title) { if (err) { err.textContent = "Judul wajib diisi."; err.classList.remove("hidden"); } return; }
+    if (!url)   { if (err) { err.textContent = "URL harus http:// atau https://"; err.classList.remove("hidden"); } return; }
     const kind = AUDIO_EXT.test(url) ? "audio" : "link";
     S.songs.push({ id: uid(), title, note: $("song-note")?.value.trim() || "", url, kind });
     save(); renderSongs(); e.target.reset(); pop(620); addScore(10);
-    toast(kind === "audio" ? "Lagu masuk daftar putar" : "Disimpan sebagai tautan", kind === "audio" ? "success" : "warn");
+    toast("Lagu ditambahkan! 🎵", "success");
   });
   on("song-list", "click", async (e) => {
     const btn = e.target.closest("[data-act]"); if (!btn) return;
@@ -1233,41 +1166,37 @@ function setupEventListeners() {
       if ($("song-edit-title")) $("song-edit-title").value = s.title;
       if ($("song-edit-note"))  $("song-edit-note").value  = s.note || "";
       if ($("song-edit-url"))   $("song-edit-url").value   = s.url;
-      $("song-edit-error")?.classList.add("hidden");
       openModal("song-modal");
     } else if (act === "song-del") {
-      if (!await askConfirm(`Hapus "${s.title}"?`, { title: "Hapus lagu", confirmText: "Hapus", danger: true })) return;
+      if (!await askConfirm(`Hapus "${s.title}"?`, { title: "Hapus", confirmText: "Hapus", danger: true })) return;
       S.songs = S.songs.filter((x) => x.id !== s.id);
       if (currentSongId === s.id) {
         player?.pause(); player?.removeAttribute("src"); currentSongId = null;
         if ($("now-playing-title")) $("now-playing-title").textContent = "Belum ada lagu diputar";
-        if ($("now-playing-desc"))  $("now-playing-desc").textContent  = "Pilih lagu dari daftar putar.";
       }
-      save(); renderSongs(); toast("Lagu dihapus");
+      save(); renderSongs(); toast("Dihapus.");
     }
   });
   on("song-edit-form", "submit", (e) => {
     e.preventDefault();
-    const err = $("song-edit-error"); err?.classList.add("hidden");
     const s = S.songs.find((x) => x.id === $("song-edit-id")?.value); if (!s) return;
     const url = httpUrl($("song-edit-url")?.value);
-    if (!url) { if (err) { err.textContent = "URL harus diawali http:// atau https://"; err.classList.remove("hidden"); } return; }
+    if (!url) return;
     s.title = $("song-edit-title")?.value.trim();
     s.note  = $("song-edit-note")?.value.trim();
     s.url   = url;
     s.kind  = AUDIO_EXT.test(url) ? "audio" : "link";
     save(); renderSongs(); closeModal("song-modal"); pop(560);
-    toast("Lagu diperbarui", "success");
+    toast("Diperbarui!", "success");
   });
 
-  // PLACES
   on("place-form", "submit", (e) => {
     e.preventDefault();
     const name = $("place-name")?.value.trim(), location = $("place-location")?.value.trim(), memory = $("place-memory")?.value.trim();
     if (!name || !location || !memory) return;
     S.places.push({ id: uid(), name, location, memory });
     save(); renderPlaces(); e.target.reset(); pop(620); addScore(10);
-    toast("Tempat berkesan ditambahkan", "success");
+    toast("Tempat berkesan ditambahkan! 🗺️", "success");
   });
   on("places-grid", "click", async (e) => {
     const btn = e.target.closest("[data-act]"); if (!btn) return;
@@ -1278,7 +1207,7 @@ function setupEventListeners() {
     else if (act === "place-del") {
       if (!await askConfirm(`Hapus "${p.name}"?`, { title: "Hapus", confirmText: "Hapus", danger: true })) return;
       S.places = S.places.filter((x) => x.id !== p.id);
-      save(); renderPlaces(); toast("Tempat dihapus");
+      save(); renderPlaces(); toast("Dihapus.");
     }
   });
   on("places-grid", "submit", (e) => {
@@ -1290,17 +1219,16 @@ function setupEventListeners() {
     p.location = $(`pl-loc-${id}`)?.value.trim();
     p.memory   = $(`pl-mem-${id}`)?.value.trim();
     editingPlaceId = null; save(); renderPlaces(); pop(560);
-    toast("Tempat diperbarui", "success");
+    toast("Diperbarui!", "success");
   });
 
-  // COUPONS
   on("coupon-form", "submit", (e) => {
     e.preventDefault();
     const title = $("coupon-title")?.value.trim(), desc = $("coupon-desc")?.value.trim();
     if (!title || !desc) return;
     S.coupons.available.push({ id: uid(), title, desc });
     save(); renderCoupons(); e.target.reset(); pop(620); addScore(10);
-    toast("Kupon baru dibuat", "success");
+    toast("Kupon baru dibuat! 🎟️", "success");
   });
   on("coupons-grid",    "click", couponAction);
   on("coupons-history", "click", couponAction);
@@ -1310,10 +1238,9 @@ function setupEventListeners() {
     c.title = $("coupon-edit-title")?.value.trim();
     c.desc  = $("coupon-edit-desc")?.value.trim();
     save(); renderCoupons(); closeModal("coupon-modal"); pop(560);
-    toast("Kupon diperbarui", "success");
+    toast("Diperbarui!", "success");
   });
 
-  // MODAL / DIALOG
   document.querySelectorAll("[data-close]").forEach((b) => on(b, "click", () => closeModal(b.dataset.close)));
   document.querySelectorAll(".modal").forEach((m) => {
     m.addEventListener("click", (e) => {
@@ -1323,15 +1250,8 @@ function setupEventListeners() {
   });
   on("dialog-confirm", "click", () => closeDialog(true));
   on("dialog-cancel",  "click", () => closeDialog(false));
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if (!$("app-dialog")?.classList.contains("hidden")) { closeDialog(false); return; }
-    document.querySelectorAll(".modal:not(.hidden)").forEach((m) => closeModal(m.id));
-    if (tp.open) closeTimePicker();
-  });
 }
 
-/* INIT */
 function init() {
   setupEventListeners();
   startReminderScheduler();
@@ -1340,19 +1260,9 @@ function init() {
   if ($("footer-julie"))  $("footer-julie").textContent  = NAMES.julie.nick;
   if ($("footer-reroll")) $("footer-reroll").textContent = NAMES.abyant.nick;
   const initial = tabFromHash(); if (initial) activateTab(initial, { updateHash: false });
-  // Gambar yang gagal dimuat diganti keterangan teks (event error tidak menggelembung).
-  document.addEventListener("error", (e) => {
-    const img = e.target;
-    if (!(img instanceof HTMLImageElement) || !img.classList.contains("gallery-img")) return;
-    const msg = document.createElement("div");
-    msg.className = "img-fail"; msg.textContent = "Gambar tidak bisa dimuat.";
-    img.replaceWith(msg);
-  }, true);
 
-  // Auth state listener, gerbang utama
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      // Login berhasil
       currentUser = user;
       $("authGate")?.classList.add("hidden");
       $("appRoot")?.classList.remove("hidden");
@@ -1361,7 +1271,6 @@ function init() {
       renderAll();
       initFirestoreSync();
     } else {
-      // Logout / belum login
       currentUser = null;
       if (unsubRoom) { unsubRoom(); unsubRoom = null; }
       $("appRoot")?.classList.add("hidden");
